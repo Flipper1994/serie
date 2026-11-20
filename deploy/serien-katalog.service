@@ -1,0 +1,16 @@
+[Unit]
+Description=Serien-Katalog HTTP-Dienst
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=serie
+WorkingDirectory=/opt/serie
+# Enthält API_TOKEN=... und bei Bedarf PORT, HOST, CACHE_MINUTEN
+EnvironmentFile=/etc/serien-katalog.env
+ExecStart=/usr/bin/node scripts/server.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
