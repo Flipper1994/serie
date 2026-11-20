@@ -18,9 +18,12 @@ Staffel `0` steht für „Specials“. Ausgabe ist JSON, dazu `ergebnis.json` un
 
 ## Als HTTP-Dienst auf einem Server
 
-`scripts/server.js` ruft `katalog.js` auf und gibt die gekürzte Fassung als
-JSON zurück: Serientitel, Staffel, Folgen mit Nummer und Titel, Staffeln und
-Sprachen.
+`scripts/server.js` ruft `katalog.js` auf und gibt dessen Ausgabe als JSON
+zurück. `ausgabe=original` (Standard) liefert sie unverändert – Anfrage,
+Seriendaten, Staffel mit Folgen, Folge und Browser-Diagnose; `ausgabe=kurz`
+eine flache Fassung (Serientitel, Folgen mit Nummer und Titel, Staffeln,
+Sprachen, Beschreibung, Infos), die die Oberfläche nutzt. In beiden Formen
+fehlen die Anbieter-Links je Folge.
 
     curl -H "Authorization: Bearer <Token>" \
       "http://127.0.0.1:8080/katalog?serie=furious&staffel=1&folge=6"

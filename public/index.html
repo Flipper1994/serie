@@ -314,7 +314,8 @@
     const uhr = setInterval(() => { sekunden.textContent = `(${Math.round((Date.now() - start) / 1000)} s)`; }, 1000);
     $('los').disabled = true;
 
-    const p = new URLSearchParams({ serie: anfrage.serie, staffel: String(anfrage.staffel) });
+    // Die Oberfläche fordert ausdrücklich die Kurzform an (Standard des Dienstes ist original).
+    const p = new URLSearchParams({ serie: anfrage.serie, staffel: String(anfrage.staffel), ausgabe: 'kurz' });
     let antwort, daten;
     try {
       antwort = await fetch(`katalog?${p}`, {

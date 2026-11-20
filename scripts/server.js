@@ -1,12 +1,16 @@
 #!/usr/bin/env node
-// Kleiner HTTP-Dienst um katalog.js: liefert die gekürzte Fassung als JSON.
+// Kleiner HTTP-Dienst um katalog.js: liefert dessen Ausgabe als JSON.
 //
 // Aufruf:   API_TOKEN=<geheim> node server.js
 // Oberfläche: GET / liefert public/index.html (ohne Token; die Seite fragt
 //           das Token selbst ab und schickt es bei jeder Abfrage mit).
-// Abfrage:  GET /katalog?serie=<Name>&staffel=<Nr>[&folge=<Nr>]
+// Abfrage:  GET /katalog?serie=<Name>&staffel=<Nr>[&folge=<Nr>][&ausgabe=original|kurz]
 //           Kopfzeile „Authorization: Bearer <API_TOKEN>“.
 //           Fehlt die Staffel, wird Staffel 1 abgefragt.
+//           ausgabe=original (Standard): Ausgabe von katalog.js unverändert
+//           (anfrage, serie, staffel, folge, browser).
+//           ausgabe=kurz: flache Fassung für die Oberfläche (serie als Titel,
+//           folgen, staffeln, sprachen, beschreibung, infos).
 //           GET /health antwortet ohne Token und ohne Browserlauf.
 // Umgebung: API_TOKEN (Pflicht), PORT (8080), HOST (127.0.0.1),
 //           CACHE_MINUTEN (60).
@@ -14,8 +18,7 @@
 //           404 Serie oder Staffel fehlt, 429 zu viele wartende Anfragen,
 //           502 technischer Fehler beim Auslesen.
 //
-// Die Antwort enthält Titel, Beschreibung, Infos (Genres, Besetzung …),
-// Staffeln, Sprachen und je Folge Nummer und Titel – keine Anbieter-Links.
+// In beiden Formen fehlen nur die Anbieter-Links je Folge (staffel.folgen[].hoster).
 
 const http = require('http');
 const path = require('path');
@@ -83,6 +86,29 @@ function eingereiht(aufgabe) {
 const cache = new Map();
 const laufend = new Map();
 
+// Entfernt die Anbieter-Links (Links zu Streams) aus den Folgen; alles andere
+// bleibt wie von katalog.js geliefert.
+function ohneAnbieterLinks(daten) {
+  return {
+    ...daten,
+    staffel: { ...daten.staffel, folgen: daten.staffel.folgen.map(({ hoster, ...folge }) => folge) },
+  };
+}
+
+const AUSGABEN = ['original', 'kurz'];
+
+// Baut die Antwort in der gewünschten Form. daten ist die Originalausgabe
+// (ohne Anbieter-Links); folge ist die angefragte Folgennummer oder null.
+function ausgabeBauen(daten, ausgabe, folge) {
+  const antwort = ausgabe === 'kurz' ? { ok: true, ...kuerzen(daten) } : { ...daten };
+  if (folge !== null) {
+    const gesucht = daten.staffel.folgen.find((f) => f.nummer === folge);
+    antwort.folge = gesucht ? { vorhanden: true, ...gesucht } : { vorhanden: false, nummer: folge };
+    if (ausgabe === 'original') antwort.anfrage = { ...daten.anfrage, folge };
+  }
+  return antwort;
+}
+
 function kuerzen(daten) {
   return {
     serie: daten.serie.titel,
@@ -111,7 +137,7 @@ function staffelHolen(serie, staffel) {
     let ergebnis = await skriptLauf(serie, staffel);
     if (ergebnis.code === 2) ergebnis = await skriptLauf(serie, staffel);
     if (ergebnis.code === 0 && ergebnis.daten.ok) {
-      const inhalt = kuerzen(ergebnis.daten);
+      const inhalt = ohneAnbieterLinks(ergebnis.daten);
       cache.set(schluessel, { bis: Date.now() + CACHE_MS, inhalt });
       return { status: 200, inhalt };
     }
@@ -157,20 +183,19 @@ const server = http.createServer(async (req, res) => {
   const serie = (url.searchParams.get('serie') || '').trim();
   const staffelArg = url.searchParams.get('staffel') ?? '1';
   const folgeArg = url.searchParams.get('folge');
-  if (!serie || serie.length > 200 || !ganzzahl(staffelArg) || (folgeArg !== null && !ganzzahl(folgeArg))) {
-    return antworten(res, 400, { ok: false, fehler: 'Aufruf: /katalog?serie=<Name>&staffel=<Nr>[&folge=<Nr>]' });
+  const ausgabe = url.searchParams.get('ausgabe') ?? 'original';
+  if (!serie || serie.length > 200 || !ganzzahl(staffelArg) || (folgeArg !== null && !ganzzahl(folgeArg)) ||
+      !AUSGABEN.includes(ausgabe)) {
+    return antworten(res, 400, {
+      ok: false,
+      fehler: 'Aufruf: /katalog?serie=<Name>&staffel=<Nr>[&folge=<Nr>][&ausgabe=original|kurz]',
+    });
   }
 
   try {
     const { status, inhalt } = await staffelHolen(serie, Number(staffelArg));
     if (status !== 200) return antworten(res, status, inhalt);
-    const antwort = { ok: true, ...inhalt };
-    if (folgeArg !== null) {
-      const nummer = Number(folgeArg);
-      const gesucht = inhalt.folgen.find((f) => f.nummer === nummer);
-      antwort.folge = gesucht ? { vorhanden: true, ...gesucht } : { vorhanden: false, nummer };
-    }
-    antworten(res, 200, antwort);
+    antworten(res, 200, ausgabeBauen(inhalt, ausgabe, folgeArg === null ? null : Number(folgeArg)));
   } catch (fehler) {
     antworten(res, 502, { ok: false, fehler: String(fehler.message).split('\n')[0] });
   }
