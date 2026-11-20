@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="light dark">
+<title>Serien-Katalog</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='6' width='26' height='18' rx='3' fill='%23c2410c'/%3E%3Cpath d='M13 11v8l7-4z' fill='%23fff'/%3E%3Crect x='10' y='26' width='12' height='2' rx='1' fill='%23c2410c'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #f6f4f1;
+    --flaeche: #ffffff;
+    --flaeche-2: #f0ede8;
+    --text: #1c1a17;
+    --text-2: #5f5a52;
+    --linie: #e3ded6;
+    --akzent: #c2410c;
+    --akzent-text: #ffffff;
+    --akzent-weich: #fdeee5;
+    --fehler: #b42318;
+    --fehler-weich: #fdecea;
+    --ok-weich: #e8f3ec;
+    --ok: #1f6f43;
+    --schatten: 0 1px 2px rgba(28, 26, 23, .06), 0 4px 16px rgba(28, 26, 23, .05);
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141311;
+      --flaeche: #1d1c19;
+      --flaeche-2: #26241f;
+      --text: #f2efe9;
+      --text-2: #a9a299;
+      --linie: #34312b;
+      --akzent: #f97316;
+      --akzent-text: #1a0d03;
+      --akzent-weich: #3a2112;
+      --fehler: #f97066;
+      --fehler-weich: #3b1a17;
+      --ok-weich: #16291e;
+      --ok: #6fcf97;
+      --schatten: 0 1px 2px rgba(0, 0, 0, .3);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+  }
+  .rahmen { max-width: 760px; margin: 0 auto; padding: 20px 16px 48px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  h1 { font-size: 1.35rem; margin: 0; letter-spacing: -.01em; }
+  h1 span { color: var(--akzent); }
+  .leise { color: var(--text-2); font-size: .875rem; }
+  button, input { font: inherit; color: inherit; }
+  .knopf-text { background: none; border: 0; padding: 4px 0; color: var(--text-2); cursor: pointer; font-size: .875rem; text-decoration: underline; text-underline-offset: 3px; }
+  .knopf-text:hover { color: var(--text); }
+
+  .karte { background: var(--flaeche); border: 1px solid var(--linie); border-radius: var(--radius); box-shadow: var(--schatten); padding: 18px; }
+  .karte + .karte, #ausgabe > .karte { margin-top: 14px; }
+
+  form.suche { display: grid; grid-template-columns: 1fr 88px 88px; gap: 10px; align-items: end; }
+  form.suche .voll { grid-column: 1 / -1; }
+  label { display: block; font-size: .8rem; font-weight: 600; color: var(--text-2); margin-bottom: 4px; }
+  input[type=text], input[type=number], input[type=password] {
+    width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--linie);
+    background: var(--flaeche-2); outline: none; min-height: 46px;
+  }
+  input:focus { border-color: var(--akzent); box-shadow: 0 0 0 3px var(--akzent-weich); }
+  input[type=number] { -moz-appearance: textfield; }
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .knopf {
+    border: 0; border-radius: 10px; background: var(--akzent); color: var(--akzent-text);
+    font-weight: 650; padding: 12px 18px; cursor: pointer; min-height: 46px; width: 100%;
+  }
+  .knopf:disabled { opacity: .6; cursor: progress; }
+  @media (max-width: 520px) {
+    form.suche { grid-template-columns: 1fr 1fr; }
+    form.suche .serie-feld { grid-column: 1 / -1; }
+  }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    border: 1px solid var(--linie); background: var(--flaeche-2); border-radius: 999px;
+    padding: 5px 12px; font-size: .85rem; cursor: pointer; white-space: nowrap;
+  }
+  .chip:hover { border-color: var(--akzent); }
+  .chip.aktiv { background: var(--akzent); border-color: var(--akzent); color: var(--akzent-text); font-weight: 600; cursor: default; }
+  .chip.still { cursor: default; }
+  .chip.still:hover { border-color: var(--linie); }
+  .zuletzt { margin-top: 12px; align-items: center; }
+  .zuletzt .leise { margin-right: 4px; }
+
+  .lade { display: flex; align-items: center; gap: 14px; }
+  .kreisel { width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--linie); border-top-color: var(--akzent); animation: dreh 0.9s linear infinite; flex: none; }
+  @keyframes dreh { to { transform: rotate(360deg); } }
+
+  .titel { font-size: 1.5rem; line-height: 1.25; margin: 0 0 4px; letter-spacing: -.015em; }
+  .meta { color: var(--text-2); margin: 0 0 14px; }
+  .abschnitt { margin-top: 16px; }
+  .abschnitt > .leise { display: block; margin-bottom: 6px; font-weight: 600; }
+
+  .treffer { border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+  .treffer.ja { background: var(--ok-weich); }
+  .treffer.ja strong { color: var(--ok); }
+  .treffer.nein { background: var(--fehler-weich); color: var(--fehler); }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--linie); vertical-align: top; }
+  th { font-size: .8rem; color: var(--text-2); font-weight: 600; }
+  td.nr, th.nr { width: 3.2em; text-align: right; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover td { background: var(--flaeche-2); }
+  tbody tr.markiert td { background: var(--akzent-weich); }
+  tbody tr.markiert td.nr { color: var(--akzent); font-weight: 700; }
+  tr:last-child td { border-bottom: 0; }
+
+  details { margin-top: 18px; border-top: 1px solid var(--linie); padding-top: 12px; }
+  summary { cursor: pointer; font-weight: 600; }
+  details p { margin: 10px 0 0; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 12px 0 0; font-size: .925rem; }
+  dt { color: var(--text-2); }
+  dd { margin: 0; }
+  @media (max-width: 520px) { dl { grid-template-columns: 1fr; gap: 2px; } dd { margin-bottom: 8px; } }
+
+  .fehler { border-color: var(--fehler); }
+  .fehler h2 { color: var(--fehler); font-size: 1.05rem; margin: 0 0 6px; }
+  .fehler p { margin: 0 0 10px; }
+
+  footer { margin-top: 28px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="rahmen">
+  <header>
+    <h1>Serien-<span>Katalog</span></h1>
+    <span class="leise">Staffeln &amp; Folgen</span>
+  </header>
+
+  <section id="zugang" class="karte" hidden>
+    <form id="zugangForm">
+      <label for="tokenFeld">Zugangs-Token</label>
+      <input id="tokenFeld" type="password" autocomplete="current-password" required placeholder="Token einfügen">
+      <p id="zugangHinweis" class="leise" style="margin:8px 0 12px">Wird nur in diesem Browser gespeichert.</p>
+      <button class="knopf" type="submit">Speichern</button>
+    </form>
+  </section>
+
+  <section id="suchbereich" class="karte" hidden>
+    <form id="suche" class="suche" autocomplete="off">
+      <div class="serie-feld">
+        <label for="serie">Serie</label>
+        <input id="serie" type="text" required maxlength="200" placeholder="z. B. Furious" enterkeyhint="search">
+      </div>
+      <div>
+        <label for="staffel">Staffel</label>
+        <input id="staffel" type="number" inputmode="numeric" min="0" max="9999" placeholder="1">
+      </div>
+      <div>
+        <label for="folge">Folge</label>
+        <input id="folge" type="number" inputmode="numeric" min="0" max="9999" placeholder="–">
+      </div>
+      <div class="voll"><button id="los" class="knopf" type="submit">Abfragen</button></div>
+    </form>
+    <div id="zuletzt" class="zuletzt chips" hidden></div>
+  </section>
+
+  <div id="ausgabe"></div>
+
+  <footer>
+    <span class="leise">Staffel 0 = Specials</span>
+    <button id="tokenAendern" class="knopf-text" type="button" hidden>Token ändern</button>
+  </footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const TOKEN_SCHLUESSEL = 'serienKatalog.token';
+  const ZULETZT_SCHLUESSEL = 'serienKatalog.zuletzt';
+  const $ = (id) => document.getElementById(id);
+
+  const speicher = {
+    lesen(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    schreiben(k, v) { try { localStorage.setItem(k, v); } catch { /* privater Modus */ } },
+    loeschen(k) { try { localStorage.removeItem(k); } catch { /* egal */ } },
+  };
+  let sitzungsToken = null;
+  const tokenLesen = () => sitzungsToken || speicher.lesen(TOKEN_SCHLUESSEL);
+  const tokenSetzen = (t) => { sitzungsToken = t; speicher.schreiben(TOKEN_SCHLUESSEL, t); };
+
+  // Kleiner Baukasten: el('div', {class: 'x'}, 'Text', kind) – Text immer als textContent.
+  function el(tag, attrs, ...kinder) {
+    const knoten = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (v === null || v === undefined || v === false) continue;
+      if (k.startsWith('on')) knoten.addEventListener(k.slice(2), v);
+      else if (k === 'class') knoten.className = v;
+      else knoten.setAttribute(k, v === true ? '' : v);
+    }
+    for (const kind of kinder.flat(Infinity)) {
+      if (kind === null || kind === undefined || kind === false) continue;
+      knoten.append(kind instanceof Node ? kind : document.createTextNode(String(kind)));
+    }
+    return knoten;
+  }
+
+  const staffelNummer = (name) => {
+    const t = String(name).trim();
+    if (/^\d+$/.test(t)) return Number(t);
+    if (/special/i.test(t)) return 0;
+    const m = t.match(/\d+/);
+    return m ? Number(m[0]) : null;
+  };
+  const staffelName = (nr, namen) => {
+    const passend = (namen || []).find((n) => staffelNummer(n) === nr);
+    if (nr === 0) return passend && !/^\d+$/.test(passend) ? passend : 'Specials';
+    return `Staffel ${nr}`;
+  };
+
+  // ---------- Zustand ----------
+  let aktuelleDaten = null;
+  let laufendeAbfrage = null;
+
+  function zeigeAusgabe(...knoten) {
+    const ziel = $('ausgabe');
+    ziel.replaceChildren(...knoten);
+  }
+
+  function zugangZeigen(hinweis) {
+    $('suchbereich').hidden = true;
+    $('zugang').hidden = false;
+    $('tokenAendern').hidden = true;
+    $('zugangHinweis').textContent = hinweis || 'Wird nur in diesem Browser gespeichert.';
+    zeigeAusgabe();
+    $('tokenFeld').value = '';
+    $('tokenFeld').focus();
+  }
+
+  function sucheZeigen() {
+    $('zugang').hidden = true;
+    $('suchbereich').hidden = false;
+    $('tokenAendern').hidden = false;
+    zuletztZeigen();
+  }
+
+  // ---------- Zuletzt gesucht ----------
+  function zuletztLesen() {
+    try { return JSON.parse(speicher.lesen(ZULETZT_SCHLUESSEL) || '[]').slice(0, 6); } catch { return []; }
+  }
+  function zuletztMerken(serie) {
+    const liste = [serie, ...zuletztLesen().filter((s) => s.toLowerCase() !== serie.toLowerCase())].slice(0, 6);
+    speicher.schreiben(ZULETZT_SCHLUESSEL, JSON.stringify(liste));
+    zuletztZeigen();
+  }
+  function zuletztZeigen() {
+    const liste = zuletztLesen();
+    const ziel = $('zuletzt');
+    ziel.hidden = liste.length === 0;
+    ziel.replaceChildren(
+      el('span', { class: 'leise' }, 'Zuletzt:'),
+      ...liste.map((s) => el('button', { type: 'button', class: 'chip', onclick: () => abfragen({ serie: s, staffel: 1, folge: null }) }, s)),
+    );
+  }
+
+  // ---------- Adresszeile ----------
+  function adresseSetzen(anfrage, ersetzen) {
+    const p = new URLSearchParams();
+    p.set('serie', anfrage.serie);
+    p.set('staffel', String(anfrage.staffel));
+    if (anfrage.folge !== null) p.set('folge', String(anfrage.folge));
+    const neu = `${location.pathname}?${p}`;
+    if (neu === location.pathname + location.search) return;
+    history[ersetzen ? 'replaceState' : 'pushState'](anfrage, '', neu);
+  }
+  function anfrageAusAdresse() {
+    const p = new URLSearchParams(location.search);
+    const serie = (p.get('serie') || '').trim();
+    if (!serie) return null;
+    const zahl = (w, std) => (w !== null && /^\d{1,4}$/.test(w) ? Number(w) : std);
+    return { serie, staffel: zahl(p.get('staffel'), 1), folge: zahl(p.get('folge'), null) };
+  }
+
+  function felderFuellen(a) {
+    $('serie').value = a.serie;
+    $('staffel').value = a.staffel;
+    $('folge').value = a.folge === null ? '' : a.folge;
+  }
+
+  // ---------- Abfrage ----------
+  async function abfragen(anfrage, { verlauf = 'push' } = {}) {
+    felderFuellen(anfrage);
+    if (verlauf) adresseSetzen(anfrage, verlauf === 'replace');
+
+    if (laufendeAbfrage) laufendeAbfrage.abort();
+    const abbruch = new AbortController();
+    laufendeAbfrage = abbruch;
+
+    const start = Date.now();
+    const sekunden = el('span', { class: 'leise' }, '');
+    const ladeKarte = el('section', { class: 'karte lade', 'aria-live': 'polite' },
+      el('div', { class: 'kreisel', 'aria-hidden': 'true' }),
+      el('div', {},
+        el('div', {}, `Lese „${anfrage.serie}“, ${staffelName(anfrage.staffel)} …`),
+        el('div', { class: 'leise' }, 'Das dauert meist rund 10 Sekunden. ', sekunden)),
+    );
+    zeigeAusgabe(ladeKarte);
+    const uhr = setInterval(() => { sekunden.textContent = `(${Math.round((Date.now() - start) / 1000)} s)`; }, 1000);
+    $('los').disabled = true;
+
+    const p = new URLSearchParams({ serie: anfrage.serie, staffel: String(anfrage.staffel) });
+    let antwort, daten;
+    try {
+      antwort = await fetch(`katalog?${p}`, {
+        headers: { Authorization: `Bearer ${tokenLesen()}` },
+        signal: abbruch.signal,
+      });
+      daten = await antwort.json().catch(() => null);
+    } catch (fehler) {
+      if (fehler.name === 'AbortError') return;
+      clearInterval(uhr);
+      $('los').disabled = false;
+      return fehlerZeigen('Keine Verbindung', 'Der Dienst ist gerade nicht erreichbar. Bitte gleich noch einmal versuchen.', anfrage);
+    } finally {
+      if (laufendeAbfrage === abbruch) {
+        clearInterval(uhr);
+        $('los').disabled = false;
+        laufendeAbfrage = null;
+      }
+    }
+    if (abbruch.signal.aborted) return;
+
+    if (antwort.status === 401) {
+      speicher.loeschen(TOKEN_SCHLUESSEL);
+      sitzungsToken = null;
+      return zugangZeigen('Das Token wurde nicht angenommen. Bitte neu eingeben.');
+    }
+    if (antwort.ok && daten && daten.ok) {
+      zuletztMerken(daten.serie);
+      aktuelleDaten = { ...daten, anfrage };
+      return ergebnisZeigen();
+    }
+    const meldung = (daten && daten.fehler) || `Fehler ${antwort.status}`;
+    if (antwort.status === 404) return fehlerZeigen('Nicht gefunden', meldung, anfrage, daten);
+    if (antwort.status === 429) return fehlerZeigen('Gerade viel los', meldung, anfrage);
+    return fehlerZeigen('Das Auslesen hat nicht geklappt', meldung, anfrage);
+  }
+
+  // ---------- Darstellung ----------
+  function fehlerZeigen(ueberschrift, meldung, anfrage, daten) {
+    const teile = [el('h2', {}, ueberschrift), el('p', {}, meldung)];
+    const vorschlaege = (daten && (daten.kandidaten || daten.aehnlicheTreffer)) || [];
+    if (vorschlaege.length) {
+      teile.push(el('div', { class: 'abschnitt' },
+        el('span', { class: 'leise' }, daten.kandidaten ? 'Welche ist gemeint?' : 'Meintest du eine davon?'),
+        el('div', { class: 'chips' }, vorschlaege.map((name) =>
+          el('button', { type: 'button', class: 'chip', onclick: () => abfragen({ serie: name, staffel: anfrage.staffel, folge: anfrage.folge }) }, name)))));
+    }
+    if (daten && Array.isArray(daten.staffeln) && daten.staffeln.length) {
+      teile.push(el('div', { class: 'abschnitt' },
+        el('span', { class: 'leise' }, `Vorhandene Staffeln${daten.serie ? ` von ${daten.serie}` : ''}`),
+        el('div', { class: 'chips' }, daten.staffeln.map((name) => {
+          const nr = staffelNummer(name);
+          return nr === null
+            ? el('span', { class: 'chip still' }, name)
+            : el('button', { type: 'button', class: 'chip', onclick: () => abfragen({ serie: daten.serie || anfrage.serie, staffel: nr, folge: null }) }, name);
+        }))));
+    }
+    if (!vorschlaege.length && !(daten && daten.staffeln)) {
+      teile.push(el('button', { type: 'button', class: 'knopf', style: 'width:auto', onclick: () => abfragen(anfrage, { verlauf: null }) }, 'Erneut versuchen'));
+    }
+    zeigeAusgabe(el('section', { class: 'karte fehler', role: 'alert' }, ...teile));
+  }
+
+  function folgeWaehlen(nummer) {
+    const a = aktuelleDaten.anfrage;
+    const neu = { ...a, folge: a.folge === nummer ? null : nummer };
+    aktuelleDaten.anfrage = neu;
+    felderFuellen(neu);
+    adresseSetzen(neu, true);
+    ergebnisZeigen({ scrollen: false });
+  }
+
+  function ergebnisZeigen({ scrollen = true } = {}) {
+    const d = aktuelleDaten;
+    const folgeNr = d.anfrage.folge;
+    const gesucht = folgeNr === null ? null : d.folgen.find((f) => f.nummer === folgeNr);
+
+    const kopf = [
+      el('h2', { class: 'titel' }, d.serie),
+      el('p', { class: 'meta' }, `${staffelName(d.staffel, d.staffeln)} · ${d.anzahlFolgen} ${d.anzahlFolgen === 1 ? 'Folge' : 'Folgen'}`),
+    ];
+    if (folgeNr !== null) {
+      kopf.push(gesucht
+        ? el('div', { class: 'treffer ja' }, el('strong', {}, `Folge ${gesucht.nummer}`), ` – „${gesucht.titel}“`)
+        : el('div', { class: 'treffer nein' }, `Folge ${folgeNr} gibt es in ${staffelName(d.staffel, d.staffeln)} nicht.`));
+    }
+
+    const staffelLeiste = el('div', { class: 'abschnitt' },
+      el('span', { class: 'leise' }, 'Staffeln'),
+      el('div', { class: 'chips' }, (d.staffeln || []).map((name) => {
+        const nr = staffelNummer(name);
+        if (nr === d.staffel) return el('span', { class: 'chip aktiv', 'aria-current': 'true' }, name);
+        if (nr === null) return el('span', { class: 'chip still' }, name);
+        return el('button', { type: 'button', class: 'chip', onclick: () => abfragen({ serie: d.serie, staffel: nr, folge: null }) }, name);
+      })));
+
+    let markierteZeile = null;
+    const tabelle = el('table', {},
+      el('thead', {}, el('tr', {}, el('th', { class: 'nr' }, 'Nr.'), el('th', {}, 'Titel'))),
+      el('tbody', {}, d.folgen.map((f) => {
+        const zeile = el('tr', {
+          class: f.nummer === folgeNr ? 'markiert' : null,
+          tabindex: '0',
+          onclick: () => folgeWaehlen(f.nummer),
+          onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); folgeWaehlen(f.nummer); } },
+        }, el('td', { class: 'nr' }, f.nummer), el('td', {}, f.titel || '–'));
+        if (f.nummer === folgeNr) markierteZeile = zeile;
+        return zeile;
+      })));
+
+    const teile = [...kopf, tabelle];
+    if (d.folgen.length === 0) teile.splice(kopf.length, 1, el('p', { class: 'leise' }, 'Für diese Staffel sind keine Folgen gelistet.'));
+    teile.push(staffelLeiste);
+    if (d.sprachen && d.sprachen.length) {
+      teile.push(el('div', { class: 'abschnitt' },
+        el('span', { class: 'leise' }, 'Sprachen'),
+        el('div', { class: 'chips' }, d.sprachen.map((s) => el('span', { class: 'chip still' }, s)))));
+    }
+    const infos = Object.entries(d.infos || {}).filter(([, werte]) => werte && werte.length);
+    if (d.beschreibung || infos.length) {
+      // Beim Neuzeichnen (Klick auf eine Folge) bleibt der Abschnitt offen.
+      const warOffen = !scrollen && !!document.querySelector('#ausgabe details[open]');
+      teile.push(el('details', { open: warOffen },
+        el('summary', {}, 'Über die Serie'),
+        d.beschreibung ? el('p', {}, d.beschreibung) : null,
+        infos.length ? el('dl', {}, infos.map(([k, werte]) => [el('dt', {}, k.replace(/:$/, '')), el('dd', {}, werte.join(', '))])) : null));
+    }
+
+    zeigeAusgabe(el('section', { class: 'karte' }, ...teile));
+    if (scrollen && markierteZeile) markierteZeile.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+
+  // ---------- Ereignisse ----------
+  $('suche').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const serie = $('serie').value.trim();
+    if (!serie) return;
+    const staffel = $('staffel').value === '' ? 1 : Number($('staffel').value);
+    const folge = $('folge').value === '' ? null : Number($('folge').value);
+    $('serie').blur();
+    abfragen({ serie, staffel, folge });
+  });
+
+  $('zugangForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const t = $('tokenFeld').value.trim();
+    if (!t) return;
+    tokenSetzen(t);
+    sucheZeigen();
+    const a = anfrageAusAdresse();
+    if (a) abfragen(a, { verlauf: null }); else $('serie').focus();
+  });
+
+  $('tokenAendern').addEventListener('click', () => zugangZeigen());
+
+  window.addEventListener('popstate', () => {
+    const a = anfrageAusAdresse();
+    if (a && tokenLesen()) abfragen(a, { verlauf: null });
+    else { zeigeAusgabe(); felderFuellen({ serie: '', staffel: '', folge: null }); }
+  });
+
+  // ---------- Start ----------
+  // Token per Link übernehmen (#token=…); das Fragment geht nie an den Server.
+  const hash = new URLSearchParams(location.hash.slice(1));
+  if (hash.get('token')) {
+    tokenSetzen(hash.get('token'));
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+
+  if (!tokenLesen()) return zugangZeigen();
+  sucheZeigen();
+  const start = anfrageAusAdresse();
+  if (start) abfragen(start, { verlauf: null });
+  else $('serie').focus();
+})();
+</script>
+</body>
+</html>

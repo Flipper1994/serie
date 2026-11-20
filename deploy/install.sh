@@ -6,6 +6,9 @@
 #                                          gedacht für einen Reverse-Proxy davor
 #   bash deploy/install.sh --oeffentlich   von außen erreichbar (0.0.0.0, ohne TLS)
 #   bash deploy/install.sh --port 8090     anderer Port als 8080
+#   bash deploy/install.sh --host <IP>     auf einer bestimmten Adresse lauschen,
+#                                          z. B. dem Docker-Gateway (172.18.0.1),
+#                                          wenn der Reverse-Proxy in Docker läuft
 #
 # Das Skript kann wiederholt werden; ein vorhandenes Token bleibt erhalten.
 set -euo pipefail
@@ -20,6 +23,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --oeffentlich) HOST_WERT=0.0.0.0 ;;
     --port) PORT_NEU=${2:-}; shift ;;
+    --host) HOST_WERT=${2:-}; shift ;;
     *) echo "Unbekannte Angabe: $1" >&2; exit 1 ;;
   esac
   shift
@@ -56,18 +60,20 @@ systemctl enable serien-katalog
 systemctl restart serien-katalog
 
 PORT_WERT=$(sed -n 's/^PORT=//p' "$ENV_DATEI"); PORT_WERT=${PORT_WERT:-8080}
+PRUEF_ADRESSE=$HOST_WERT
+[ "$HOST_WERT" = 0.0.0.0 ] && PRUEF_ADRESSE=127.0.0.1
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-  curl -fs "http://127.0.0.1:$PORT_WERT/health" >/dev/null && break
+  curl -fs "http://$PRUEF_ADRESSE:$PORT_WERT/health" >/dev/null && break
   sleep 1
 done
-curl -fs "http://127.0.0.1:$PORT_WERT/health" >/dev/null || {
+curl -fs "http://$PRUEF_ADRESSE:$PORT_WERT/health" >/dev/null || {
   echo "Der Dienst antwortet nicht. Siehe: journalctl -u serien-katalog -n 50" >&2; exit 1; }
 
-ADRESSE=127.0.0.1
+ADRESSE=$PRUEF_ADRESSE
 [ "$HOST_WERT" = 0.0.0.0 ] && ADRESSE=$(hostname -I | awk '{print $1}')
 TOKEN=$(sed -n 's/^API_TOKEN=//p' "$ENV_DATEI")
 echo
 echo "Der Dienst läuft."
-echo "URL:   http://$ADRESSE:$PORT_WERT/katalog?serie=furious&staffel=1&folge=6"
+echo "URL:   http://$ADRESSE:$PORT_WERT/  (Oberfläche; API: /katalog?serie=furious&staffel=1&folge=6)"
 echo "Token: $TOKEN"
 echo "Test:  curl -H \"Authorization: Bearer $TOKEN\" \"http://$ADRESSE:$PORT_WERT/katalog?serie=furious&staffel=1&folge=6\""

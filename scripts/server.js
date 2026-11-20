@@ -2,6 +2,8 @@
 // Kleiner HTTP-Dienst um katalog.js: liefert die gekürzte Fassung als JSON.
 //
 // Aufruf:   API_TOKEN=<geheim> node server.js
+// Oberfläche: GET / liefert public/index.html (ohne Token; die Seite fragt
+//           das Token selbst ab und schickt es bei jeder Abfrage mit).
 // Abfrage:  GET /katalog?serie=<Name>&staffel=<Nr>[&folge=<Nr>]
 //           Kopfzeile „Authorization: Bearer <API_TOKEN>“.
 //           Fehlt die Staffel, wird Staffel 1 abgefragt.
@@ -12,8 +14,8 @@
 //           404 Serie oder Staffel fehlt, 429 zu viele wartende Anfragen,
 //           502 technischer Fehler beim Auslesen.
 //
-// Die Antwort enthält nur Titel, Staffeln, Sprachen und je Folge Nummer und
-// Titel – keine Beschreibung, keine Besetzung, keine Anbieter-Links.
+// Die Antwort enthält Titel, Beschreibung, Infos (Genres, Besetzung …),
+// Staffeln, Sprachen und je Folge Nummer und Titel – keine Anbieter-Links.
 
 const http = require('http');
 const path = require('path');
@@ -29,6 +31,14 @@ const CACHE_MS = Number(process.env.CACHE_MINUTEN || 60) * 60 * 1000;
 const LAUF_ZEITLIMIT_MS = 90000;
 const MAX_WARTEND = 5;
 const SKRIPT = path.join(__dirname, 'katalog.js');
+const OBERFLAECHE = path.join(__dirname, '..', 'public', 'index.html');
+const SICHERHEITS_KOPF = {
+  'Content-Security-Policy':
+    "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; " +
+    "img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'no-referrer',
+};
 
 if (!TOKEN) {
   console.error('API_TOKEN ist nicht gesetzt – der Dienst startet nicht ohne Token.');
@@ -76,6 +86,8 @@ const laufend = new Map();
 function kuerzen(daten) {
   return {
     serie: daten.serie.titel,
+    beschreibung: daten.serie.beschreibung,
+    infos: daten.serie.infos,
     staffel: daten.staffel.nummer,
     anzahlFolgen: daten.staffel.anzahlFolgen,
     folgen: daten.staffel.folgen.map((f) => ({ nummer: f.nummer, titel: f.titel })),
@@ -127,6 +139,18 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   if (req.method !== 'GET') return antworten(res, 405, { ok: false, fehler: 'Nur GET ist erlaubt' });
   if (url.pathname === '/health') return antworten(res, 200, { ok: true });
+  if (url.pathname === '/' || url.pathname === '/index.html') {
+    return fs.readFile(OBERFLAECHE, (fehler, inhalt) => {
+      if (fehler) return antworten(res, 500, { ok: false, fehler: 'Oberfläche fehlt' });
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Length': inhalt.length,
+        'Cache-Control': 'no-cache',
+        ...SICHERHEITS_KOPF,
+      });
+      res.end(inhalt);
+    });
+  }
   if (url.pathname !== '/katalog') return antworten(res, 404, { ok: false, fehler: 'Unbekannter Pfad' });
   if (!tokenStimmt(req.headers.authorization)) return antworten(res, 401, { ok: false, fehler: 'Token fehlt oder ist falsch' });
 

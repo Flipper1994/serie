@@ -26,7 +26,11 @@ Sprachen.
       "http://127.0.0.1:8080/katalog?serie=furious&staffel=1&folge=6"
 
 `staffel` ist optional (Standard 1), `folge` ebenfalls. `GET /health` antwortet
-ohne Token. Es läuft immer nur ein Browser gleichzeitig; Ergebnisse bleiben
+ohne Token. `GET /` liefert eine Oberfläche (`public/index.html`): Suche nach
+Serie, Staffel und Folge, Folgentabelle, Staffel-Leiste, Sprachen und „Über die
+Serie“. Sie fragt beim ersten Aufruf das Token ab und merkt es sich im Browser;
+ein Link mit `#token=<Token>` setzt es direkt. Die Adresse enthält die Abfrage
+(`?serie=furious&staffel=1&folge=6`) und lässt sich teilen. Es läuft immer nur ein Browser gleichzeitig; Ergebnisse bleiben
 60 Minuten im Speicher.
 
 Einrichten (Debian/Ubuntu, als root, Node ab Version 18 vorausgesetzt):
@@ -48,6 +52,11 @@ Der Dienst lauscht nur auf `127.0.0.1:8080`. Für Zugriff von außen einen
 Reverse-Proxy mit TLS davorsetzen oder in `/etc/serien-katalog.env`
 `HOST=0.0.0.0` setzen (dann geht das Token unverschlüsselt über die Leitung).
 Weitere Einstellungen: `PORT`, `CACHE_MINUTEN`.
+
+Läuft der Reverse-Proxy selbst in Docker, kommt er nicht an `127.0.0.1` des
+Servers. Dann den Dienst auf das Gateway des Docker-Netzes legen, z. B.
+`bash deploy/install.sh --host 172.18.0.1 --port 8090`, und im Proxy
+`proxy_pass http://172.18.0.1:8090/;` unter einem eigenen Pfad wie `/serie/`.
 
 ## Testen
 
