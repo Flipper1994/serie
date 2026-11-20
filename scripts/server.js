@@ -8,7 +8,7 @@
 //           Kopfzeile „Authorization: Bearer <API_TOKEN>“.
 //           Fehlt die Staffel, wird Staffel 1 abgefragt.
 //           ausgabe=original (Standard): Ausgabe von katalog.js unverändert
-//           (anfrage, serie, staffel, folge, browser).
+//           (anfrage, serie, staffel, folge, browser), inkl. Anbieter-Links.
 //           ausgabe=kurz: flache Fassung für die Oberfläche (serie als Titel,
 //           folgen, staffeln, sprachen, beschreibung, infos).
 //           GET /health antwortet ohne Token und ohne Browserlauf.
@@ -18,7 +18,8 @@
 //           404 Serie oder Staffel fehlt, 429 zu viele wartende Anfragen,
 //           502 technischer Fehler beim Auslesen.
 //
-// In beiden Formen fehlen nur die Anbieter-Links je Folge (staffel.folgen[].hoster).
+// Hinweis: Es werden KEINE Anbieter-Links mehr herausgefiltert. Die Felder
+// staffel.folgen[].hoster bleiben in der original-Ausgabe enthalten.
 
 const http = require('http');
 const path = require('path');
@@ -86,19 +87,15 @@ function eingereiht(aufgabe) {
 const cache = new Map();
 const laufend = new Map();
 
-// Entfernt die Anbieter-Links (Links zu Streams) aus den Folgen; alles andere
-// bleibt wie von katalog.js geliefert.
-function ohneAnbieterLinks(daten) {
-  return {
-    ...daten,
-    staffel: { ...daten.staffel, folgen: daten.staffel.folgen.map(({ hoster, ...folge }) => folge) },
-  };
+// Gibt die Daten unverändert zurück (keine Filterung der Anbieter-Links).
+function datenDurchreichen(daten) {
+  return daten;
 }
 
 const AUSGABEN = ['original', 'kurz'];
 
 // Baut die Antwort in der gewünschten Form. daten ist die Originalausgabe
-// (ohne Anbieter-Links); folge ist die angefragte Folgennummer oder null.
+// (inkl. Anbieter-Links); folge ist die angefragte Folgennummer oder null.
 function ausgabeBauen(daten, ausgabe, folge) {
   const antwort = ausgabe === 'kurz' ? { ok: true, ...kuerzen(daten) } : { ...daten };
   if (folge !== null) {
@@ -137,7 +134,7 @@ function staffelHolen(serie, staffel) {
     let ergebnis = await skriptLauf(serie, staffel);
     if (ergebnis.code === 2) ergebnis = await skriptLauf(serie, staffel);
     if (ergebnis.code === 0 && ergebnis.daten.ok) {
-      const inhalt = ohneAnbieterLinks(ergebnis.daten);
+      const inhalt = datenDurchreichen(ergebnis.daten);
       cache.set(schluessel, { bis: Date.now() + CACHE_MS, inhalt });
       return { status: 200, inhalt };
     }
