@@ -10,7 +10,7 @@
 //           falscher Aufruf), 2 bei technischem Fehler (Seite nicht erreichbar).
 //
 // Das Skript endet bewusst auf der Staffelübersicht. Es öffnet keine
-// Episodenseite und sammelt weder Episoden- noch Anbieter-Links.
+// Episodenseite; die Anbieter-Links kommen aus Zelle 2 der Folgentabelle.
 
 const path = require('path');
 const fs = require('fs');
@@ -145,7 +145,14 @@ async function uebersichtLesen(page) {
     const folgen = [...wurzel.querySelectorAll('table.episodes tr')]
       .map((zeile) => {
         const zellen = zeile.querySelectorAll('td');
-        return { nummer: Number(text(zellen[0])), titel: text(zellen[1]) };
+        // Zelle 2 enthält die Anbieter-Links der Folge (Icons mit title + href).
+        const hoster = zellen[2]
+          ? [...zellen[2].querySelectorAll('a')].map((a) => ({
+              title: a.getAttribute('title'),
+              href: a.href, // absolut aufgelöste URL
+            }))
+          : [];
+        return { nummer: Number(text(zellen[0])), titel: text(zellen[1]), hoster };
       })
       .filter((f) => Number.isInteger(f.nummer));
 
