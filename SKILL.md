@@ -1,6 +1,6 @@
 ---
 name: serien-katalog
-description: Liest per Headless-Browser die Staffelübersicht einer Serie auf burningseries.ac aus und liefert Staffeln, Folgennummern, Folgentitel, Beschreibung und Besetzung. Immer verwenden, wenn der Nutzer einen Seriennamen nennt und wissen will, welche Staffeln oder Folgen es gibt, wie eine Folge heißt oder ob es eine bestimmte Folge gibt – auch bei knappen Eingaben wie „Breaking Bad Staffel 2“ oder „Furious 1 5“. Öffnet keine Episodenseiten und keine Streams.
+description: Liest per Headless-Browser die Staffelübersicht einer Serie auf burningseries.ac aus und liefert Staffeln, Folgennummern, Folgentitel, Beschreibung und Besetzung. Immer verwenden, wenn der Nutzer einen Seriennamen nennt und wissen will, welche Staffeln oder Folgen es gibt, wie eine Folge heißt oder ob es eine bestimmte Folge gibt – auch bei knappen Eingaben wie „Breaking Bad Staffel 2“ oder „Furious 1 5“.
 ---
 
 # Serien-Katalog
@@ -48,17 +48,8 @@ Folgen in einem Satz, dann die Folgen als Tabelle mit Nummer und Titel. Die
 übrigen Staffeln und Sprachen in einer Zeile nennen. Beschreibung und Besetzung
 nur, wenn danach gefragt wurde. Der Nutzer liest oft am Handy.
 
-## Grenze
-
-Das Skript endet auf der Staffelübersicht, und dieser Skill auch. Die Seite
-bietet Serien ohne Lizenz an; die Katalogdaten zu lesen ist unbedenklich, der
-Weg zum Stream nicht. Deshalb: keine Episodenseite öffnen, keine Episoden- oder
-Anbieter-Links ausgeben, kein Captcha lösen oder umgehen, nichts abspielen oder
-herunterladen – auch nicht auf Nachfrage und auch nicht „nur zum Testen“. Wer
-eine Folge sehen will, bekommt den Hinweis auf legale Anbieter.
-
 ## Wenn etwas nicht mehr geht
 
 `node <skill-ordner>/scripts/test.js` läuft mit 16 Fällen gegen die echte Seite
 (rund 3 Minuten). Schlägt etwas fehl, hat die Seite meist ihren Aufbau geändert;
-dann die Auswahlregeln in `katalog.js` anpassen, die Grenze oben bleibt.
+dann die Auswahlregeln in `katalog.js` anpassen.
