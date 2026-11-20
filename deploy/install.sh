@@ -2,8 +2,10 @@
 # Richtet den Serien-Katalog-Dienst auf einem Debian/Ubuntu-Server ein.
 #
 # Aufruf (als root, aus dem geklonten Repo):
-#   bash deploy/install.sh                 nur lokal erreichbar (127.0.0.1)
+#   bash deploy/install.sh                 nur lokal erreichbar (127.0.0.1),
+#                                          gedacht für einen Reverse-Proxy davor
 #   bash deploy/install.sh --oeffentlich   von außen erreichbar (0.0.0.0, ohne TLS)
+#   bash deploy/install.sh --port 8090     anderer Port als 8080
 #
 # Das Skript kann wiederholt werden; ein vorhandenes Token bleibt erhalten.
 set -euo pipefail
@@ -13,7 +15,15 @@ set -euo pipefail
 ORDNER=$(cd "$(dirname "$0")/.." && pwd)
 ENV_DATEI=/etc/serien-katalog.env
 HOST_WERT=127.0.0.1
-[ "${1:-}" = "--oeffentlich" ] && HOST_WERT=0.0.0.0
+PORT_NEU=
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --oeffentlich) HOST_WERT=0.0.0.0 ;;
+    --port) PORT_NEU=${2:-}; shift ;;
+    *) echo "Unbekannte Angabe: $1" >&2; exit 1 ;;
+  esac
+  shift
+done
 
 NODE=$(command -v node || true)
 if [ -z "$NODE" ] || [ "$("$NODE" -p 'process.versions.node.split(".")[0]')" -lt 18 ]; then
@@ -30,11 +40,14 @@ als_serie npm install --no-save playwright
 npx playwright install-deps chromium
 als_serie npx playwright install chromium
 
-if [ ! -f "$ENV_DATEI" ]; then
-  (umask 077; echo "API_TOKEN=$(openssl rand -hex 32)" > "$ENV_DATEI")
-fi
+(umask 077; touch "$ENV_DATEI")
+grep -q '^API_TOKEN=' "$ENV_DATEI" || echo "API_TOKEN=$(openssl rand -hex 32)" >> "$ENV_DATEI"
 sed -i '/^HOST=/d' "$ENV_DATEI"
 echo "HOST=$HOST_WERT" >> "$ENV_DATEI"
+if [ -n "$PORT_NEU" ]; then
+  sed -i '/^PORT=/d' "$ENV_DATEI"
+  echo "PORT=$PORT_NEU" >> "$ENV_DATEI"
+fi
 
 sed -e "s|/opt/serie|$ORDNER|" -e "s|/usr/bin/node|$NODE|" deploy/serien-katalog.service \
   > /etc/systemd/system/serien-katalog.service
