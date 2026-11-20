@@ -11,3 +11,10 @@ Die Folgen als Tabelle mit Nummer und Titel zeigen, kein rohes JSON. In
 Cloud-Sitzungen sind Playwright und Chromium vorinstalliert; nichts installieren.
 
 Sprache: Deutsch mit echten Umlauten. Commits deutsch, ohne AI-Attribution.
+
+## Ausrollen
+
+Änderungen immer direkt auf `main` pushen. Der vServer zieht `main` alle
+2 Minuten (systemd-Timer `serie-update`) nach `/opt/serie` und startet den
+Dienst `serien-katalog` bei neuen Commits neu. Erreichbar unter
+https://flippercapital.duckdns.org/serie/.
