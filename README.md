@@ -6,8 +6,8 @@ Besetzung, Sprachen, Staffeln und je Folge Nummer und Titel.
 
 ## Als Skill installieren
 
-`serien-katalog.skill` herunterladen und in Claude als Skill speichern. Danach
-reicht in jeder Sitzung eine Eingabe wie „Breaking Bad Staffel 2“.
+`SKILL.md` und den Ordner `scripts/` zusammen in Claude als Skill speichern.
+Danach reicht in jeder Sitzung eine Eingabe wie „Breaking Bad Staffel 2“.
 
 ## Direkt aufrufen
 
