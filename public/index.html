@@ -8,132 +8,399 @@
 <title>Serien-Katalog</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='6' width='26' height='18' rx='3' fill='%23c2410c'/%3E%3Cpath d='M13 11v8l7-4z' fill='%23fff'/%3E%3Crect x='10' y='26' width='12' height='2' rx='1' fill='%23c2410c'/%3E%3C/svg%3E">
 <style>
+  /* ---------- Design-Tokens ---------- */
   :root {
     --bg: #f6f4f1;
     --flaeche: #ffffff;
     --flaeche-2: #f0ede8;
+    --flaeche-3: #ebe6df;
     --text: #1c1a17;
     --text-2: #5f5a52;
+    --text-3: #8a8478;
     --linie: #e3ded6;
+    --linie-2: #d4cdc2;
     --akzent: #c2410c;
+    --akzent-2: #ea580c;
     --akzent-text: #ffffff;
     --akzent-weich: #fdeee5;
     --fehler: #b42318;
     --fehler-weich: #fdecea;
     --ok-weich: #e8f3ec;
     --ok: #1f6f43;
-    --schatten: 0 1px 2px rgba(28, 26, 23, .06), 0 4px 16px rgba(28, 26, 23, .05);
-    --radius: 14px;
+    --warn: #b45309;
+    --warn-weich: #fdf3e3;
+    --schatten-1: 0 1px 2px rgba(28, 26, 23, .05);
+    --schatten-2: 0 4px 16px rgba(28, 26, 23, .06), 0 1px 3px rgba(28, 26, 23, .04);
+    --schatten-3: 0 12px 32px rgba(28, 26, 23, .08), 0 4px 12px rgba(28, 26, 23, .05);
+    --radius: 16px;
+    --radius-klein: 10px;
+    --radius-rund: 999px;
+    --übergang: 160ms cubic-bezier(.4, 0, .2, 1);
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #141311;
-      --flaeche: #1d1c19;
+      --bg: #0f0e0c;
+      --flaeche: #1c1b18;
       --flaeche-2: #26241f;
+      --flaeche-3: #312e28;
       --text: #f2efe9;
       --text-2: #a9a299;
+      --text-3: #78726a;
       --linie: #34312b;
+      --linie-2: #423e36;
       --akzent: #f97316;
+      --akzent-2: #fb923c;
       --akzent-text: #1a0d03;
       --akzent-weich: #3a2112;
       --fehler: #f97066;
       --fehler-weich: #3b1a17;
       --ok-weich: #16291e;
       --ok: #6fcf97;
-      --schatten: 0 1px 2px rgba(0, 0, 0, .3);
+      --warn: #fbbf24;
+      --warn-weich: #2d2410;
+      --schatten-1: 0 1px 2px rgba(0, 0, 0, .3);
+      --schatten-2: 0 4px 16px rgba(0, 0, 0, .35);
+      --schatten-3: 0 12px 32px rgba(0, 0, 0, .5);
     }
   }
+
+  /* ---------- Basis ---------- */
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
   body {
     margin: 0;
     background: var(--bg);
     color: var(--text);
-    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
     min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
-  .rahmen { max-width: 760px; margin: 0 auto; padding: 20px 16px 48px; }
-  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
-  h1 { font-size: 1.35rem; margin: 0; letter-spacing: -.01em; }
-  h1 span { color: var(--akzent); }
+  ::selection { background: var(--akzent); color: var(--akzent-text); }
+
+  .rahmen { max-width: 820px; margin: 0 auto; padding: 24px 16px 56px; }
+
+  /* ---------- Kopfzeile ---------- */
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  h1 {
+    font-size: 1.4rem;
+    margin: 0;
+    letter-spacing: -.015em;
+    font-weight: 700;
+  }
+  h1 span {
+    background: linear-gradient(135deg, var(--akzent), var(--akzent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
   .leise { color: var(--text-2); font-size: .875rem; }
-  button, input { font: inherit; color: inherit; }
-  .knopf-text { background: none; border: 0; padding: 4px 0; color: var(--text-2); cursor: pointer; font-size: .875rem; text-decoration: underline; text-underline-offset: 3px; }
+  .leise-klein { color: var(--text-3); font-size: .8rem; }
+
+  /* ---------- Schaltflächen ---------- */
+  button, input, select { font: inherit; color: inherit; }
+  button { -webkit-tap-highlight-color: transparent; }
+  .knopf {
+    border: 0;
+    border-radius: var(--radius-klein);
+    background: linear-gradient(135deg, var(--akzent), var(--akzent-2));
+    color: var(--akzent-text);
+    font-weight: 650;
+    padding: 12px 20px;
+    cursor: pointer;
+    min-height: 46px;
+    width: 100%;
+    transition: transform var(--übergang), box-shadow var(--übergang), opacity var(--übergang);
+    box-shadow: 0 1px 2px rgba(194, 65, 12, .25);
+  }
+  .knopf:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(194, 65, 12, .3); }
+  .knopf:active:not(:disabled) { transform: translateY(0); }
+  .knopf:disabled { opacity: .55; cursor: progress; }
+  .knopf-text {
+    background: none; border: 0; padding: 4px 0;
+    color: var(--text-2); cursor: pointer;
+    font-size: .875rem; text-decoration: underline; text-underline-offset: 3px;
+    transition: color var(--übergang);
+  }
   .knopf-text:hover { color: var(--text); }
 
-  .karte { background: var(--flaeche); border: 1px solid var(--linie); border-radius: var(--radius); box-shadow: var(--schatten); padding: 18px; }
-  .karte + .karte, #ausgabe > .karte { margin-top: 14px; }
-
-  form.suche { display: grid; grid-template-columns: 1fr 88px 88px; gap: 10px; align-items: end; }
-  form.suche .voll { grid-column: 1 / -1; }
-  label { display: block; font-size: .8rem; font-weight: 600; color: var(--text-2); margin-bottom: 4px; }
-  input[type=text], input[type=number], input[type=password] {
-    width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--linie);
-    background: var(--flaeche-2); outline: none; min-height: 46px;
+  /* ---------- Karten ---------- */
+  .karte {
+    background: var(--flaeche);
+    border: 1px solid var(--linie);
+    border-radius: var(--radius);
+    box-shadow: var(--schatten-2);
+    padding: 20px;
+    transition: box-shadow var(--übergang);
   }
-  input:focus { border-color: var(--akzent); box-shadow: 0 0 0 3px var(--akzent-weich); }
+  .karte + .karte, #ausgabe > .karte { margin-top: 16px; }
+
+  /* ---------- Suchformular ---------- */
+  form.suche { display: grid; grid-template-columns: 1fr 96px 96px; gap: 12px; align-items: end; }
+  form.suche .voll { grid-column: 1 / -1; }
+  label { display: block; font-size: .8rem; font-weight: 600; color: var(--text-2); margin-bottom: 6px; letter-spacing: .01em; }
+  input[type=text], input[type=number], input[type=password] {
+    width: 100%;
+    padding: 11px 14px;
+    border-radius: var(--radius-klein);
+    border: 1px solid var(--linie);
+    background: var(--flaeche-2);
+    outline: none;
+    min-height: 46px;
+    transition: border-color var(--übergang), box-shadow var(--übergang), background var(--übergang);
+  }
+  input::placeholder { color: var(--text-3); }
+  input:focus {
+    border-color: var(--akzent);
+    box-shadow: 0 0 0 4px var(--akzent-weich);
+    background: var(--flaeche);
+  }
   input[type=number] { -moz-appearance: textfield; }
   input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
-  .knopf {
-    border: 0; border-radius: 10px; background: var(--akzent); color: var(--akzent-text);
-    font-weight: 650; padding: 12px 18px; cursor: pointer; min-height: 46px; width: 100%;
-  }
-  .knopf:disabled { opacity: .6; cursor: progress; }
-  @media (max-width: 520px) {
+  @media (max-width: 540px) {
     form.suche { grid-template-columns: 1fr 1fr; }
     form.suche .serie-feld { grid-column: 1 / -1; }
   }
 
+  /* ---------- Chips ---------- */
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .chip {
-    border: 1px solid var(--linie); background: var(--flaeche-2); border-radius: 999px;
-    padding: 5px 12px; font-size: .85rem; cursor: pointer; white-space: nowrap;
+    border: 1px solid var(--linie);
+    background: var(--flaeche-2);
+    border-radius: var(--radius-rund);
+    padding: 6px 13px;
+    font-size: .85rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all var(--übergang);
   }
-  .chip:hover { border-color: var(--akzent); }
-  .chip.aktiv { background: var(--akzent); border-color: var(--akzent); color: var(--akzent-text); font-weight: 600; cursor: default; }
+  .chip:hover { border-color: var(--akzent); transform: translateY(-1px); }
+  .chip.aktiv {
+    background: linear-gradient(135deg, var(--akzent), var(--akzent-2));
+    border-color: transparent;
+    color: var(--akzent-text);
+    font-weight: 600;
+    cursor: default;
+    box-shadow: 0 2px 8px rgba(194, 65, 12, .3);
+  }
+  .chip.aktiv:hover { transform: none; }
   .chip.still { cursor: default; }
-  .chip.still:hover { border-color: var(--linie); }
-  .zuletzt { margin-top: 12px; align-items: center; }
-  .zuletzt .leise { margin-right: 4px; }
+  .chip.still:hover { border-color: var(--linie); transform: none; }
+  .zuletzt { margin-top: 14px; align-items: center; }
+  .zuletzt .leise { margin-right: 6px; }
 
-  .lade { display: flex; align-items: center; gap: 14px; }
-  .kreisel { width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--linie); border-top-color: var(--akzent); animation: dreh 0.9s linear infinite; flex: none; }
+  /* ---------- Ladeanzeige ---------- */
+  .lade { display: flex; align-items: center; gap: 16px; }
+  .kreisel {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 3px solid var(--linie);
+    border-top-color: var(--akzent);
+    animation: dreh 0.85s linear infinite;
+    flex: none;
+  }
   @keyframes dreh { to { transform: rotate(360deg); } }
+  .lade-text { font-weight: 500; }
+  .lade-text .leise { display: block; margin-top: 2px; }
 
-  .titel { font-size: 1.5rem; line-height: 1.25; margin: 0 0 4px; letter-spacing: -.015em; }
-  .meta { color: var(--text-2); margin: 0 0 14px; }
-  .abschnitt { margin-top: 16px; }
-  .abschnitt > .leise { display: block; margin-bottom: 6px; font-weight: 600; }
+  /* ---------- Ergebnisanzeige ---------- */
+  .titel {
+    font-size: 1.65rem;
+    line-height: 1.2;
+    margin: 0 0 6px;
+    letter-spacing: -.02em;
+    font-weight: 700;
+  }
+  .meta { color: var(--text-2); margin: 0 0 16px; font-size: .925rem; }
+  .meta .trenner { color: var(--text-3); margin: 0 6px; }
+  .abschnitt { margin-top: 18px; }
+  .abschnitt > .leise { display: block; margin-bottom: 8px; font-weight: 600; font-size: .8rem; letter-spacing: .02em; text-transform: uppercase; }
 
-  .treffer { border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
-  .treffer.ja { background: var(--ok-weich); }
-  .treffer.ja strong { color: var(--ok); }
+  /* Treffer-Hinweis (Folge gefunden / nicht gefunden) */
+  .treffer {
+    border-radius: var(--radius-klein);
+    padding: 12px 14px;
+    margin-bottom: 16px;
+    font-size: .95rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .treffer.ja { background: var(--ok-weich); color: var(--ok); }
   .treffer.nein { background: var(--fehler-weich); color: var(--fehler); }
+  .treffer-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    flex: none;
+  }
 
-  table { width: 100%; border-collapse: collapse; }
-  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--linie); vertical-align: top; }
-  th { font-size: .8rem; color: var(--text-2); font-weight: 600; }
-  td.nr, th.nr { width: 3.2em; text-align: right; color: var(--text-2); font-variant-numeric: tabular-nums; }
-  tbody tr { cursor: pointer; }
-  tbody tr:hover td { background: var(--flaeche-2); }
-  tbody tr.markiert td { background: var(--akzent-weich); }
-  tbody tr.markiert td.nr { color: var(--akzent); font-weight: 700; }
-  tr:last-child td { border-bottom: 0; }
+  /* ---------- Folgenliste ---------- */
+  .folgen { display: flex; flex-direction: column; gap: 8px; }
+  .folge {
+    border: 1px solid var(--linie);
+    border-radius: var(--radius-klein);
+    background: var(--flaeche-2);
+    overflow: hidden;
+    transition: border-color var(--übergang), box-shadow var(--übergang);
+  }
+  .folge:hover { border-color: var(--linie-2); }
+  .folge.markiert {
+    border-color: var(--akzent);
+    box-shadow: 0 0 0 3px var(--akzent-weich);
+    background: var(--flaeche);
+  }
+  .folge-kopf {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .folge-kopf:focus-visible { outline: 2px solid var(--akzent); outline-offset: -2px; }
+  .folge-nr {
+    flex: none;
+    min-width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--flaeche-3);
+    color: var(--text-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    font-size: .9rem;
+    transition: background var(--übergang), color var(--übergang);
+  }
+  .folge.markiert .folge-nr { background: linear-gradient(135deg, var(--akzent), var(--akzent-2)); color: var(--akzent-text); }
+  .folge-titel { flex: 1; min-width: 0; }
+  .folge-titel-text {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .folge-hoster-anzahl {
+    font-size: .75rem;
+    color: var(--text-3);
+    margin-top: 2px;
+  }
+  .folge-hoster-anzahl.leer { color: var(--text-3); }
+  .folge-chevron {
+    flex: none;
+    color: var(--text-3);
+    transition: transform var(--übergang), color var(--übergang);
+    width: 16px; height: 16px;
+  }
+  .folge.offen .folge-chevron { transform: rotate(180deg); color: var(--akzent); }
 
-  details { margin-top: 18px; border-top: 1px solid var(--linie); padding-top: 12px; }
-  summary { cursor: pointer; font-weight: 600; }
-  details p { margin: 10px 0 0; }
-  dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 12px 0 0; font-size: .925rem; }
-  dt { color: var(--text-2); }
+  .folge-inhalt {
+    padding: 0 14px 14px 58px;
+    border-top: 1px solid var(--linie);
+    background: var(--flaeche);
+  }
+  .folge-inhalt[hidden] { display: none; }
+  .anbieter-liste { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; }
+  .anbieter {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    background: var(--flaeche-2);
+    border: 1px solid var(--linie);
+    color: inherit;
+    text-decoration: none;
+    transition: all var(--übergang);
+  }
+  .anbieter:hover {
+    border-color: var(--akzent);
+    background: var(--akzent-weich);
+    transform: translateX(2px);
+  }
+  .anbieter-name { flex: 1; font-weight: 500; }
+  .anbieter-pfeil { color: var(--text-3); transition: color var(--übergang); }
+  .anbieter:hover .anbieter-pfeil { color: var(--akzent); }
+  .anbieter-text { padding: 9px 12px; color: var(--text-2); font-style: italic; font-size: .875rem; }
+
+  /* ---------- Details / Sprache / Info ---------- */
+  details { margin-top: 20px; border-top: 1px solid var(--linie); padding-top: 14px; }
+  summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--text-2);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: color var(--übergang);
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::before {
+    content: "›";
+    display: inline-block;
+    transition: transform var(--übergang);
+    color: var(--akzent);
+    font-size: 1.2em;
+    line-height: 1;
+  }
+  details[open] summary::before { transform: rotate(90deg); }
+  summary:hover { color: var(--text); }
+  details p { margin: 14px 0 0; line-height: 1.6; }
+  dl {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 8px 16px;
+    margin: 14px 0 0;
+    font-size: .925rem;
+  }
+  dt { color: var(--text-2); font-weight: 500; }
   dd { margin: 0; }
-  @media (max-width: 520px) { dl { grid-template-columns: 1fr; gap: 2px; } dd { margin-bottom: 8px; } }
+  @media (max-width: 540px) {
+    dl { grid-template-columns: 1fr; gap: 2px; }
+    dd { margin-bottom: 10px; }
+  }
 
-  .fehler { border-color: var(--fehler); }
-  .fehler h2 { color: var(--fehler); font-size: 1.05rem; margin: 0 0 6px; }
-  .fehler p { margin: 0 0 10px; }
+  /* ---------- Fehlerkarte ---------- */
+  .fehler-karte { border-color: var(--fehler); }
+  .fehler-karte h2 { color: var(--fehler); font-size: 1.1rem; margin: 0 0 8px; font-weight: 700; }
+  .fehler-karte p { margin: 0 0 12px; }
 
-  footer { margin-top: 28px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  /* ---------- Fußzeile ---------- */
+  footer {
+    margin-top: 32px;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding-top: 16px;
+    border-top: 1px solid var(--linie);
+  }
+
+  /* ---------- Animationen ---------- */
+  @keyframes erscheinen {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .karte { animation: erscheinen var(--übergang) ease-out; }
+
   [hidden] { display: none !important; }
+
+  /* Erschwinglichkeit: Bewegung reduzieren */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .01ms !important;
+      transition-duration: .01ms !important;
+    }
+  }
 </style>
 </head>
 <body>
@@ -143,6 +410,7 @@
     <span class="leise">Staffeln &amp; Folgen</span>
   </header>
 
+  <!-- Zugangskarte: nur ohne Token sichtbar -->
   <section id="zugang" class="karte" hidden>
     <form id="zugangForm">
       <label for="tokenFeld">Zugangs-Token</label>
@@ -152,6 +420,7 @@
     </form>
   </section>
 
+  <!-- Suchkarte: nur mit Token sichtbar -->
   <section id="suchbereich" class="karte" hidden>
     <form id="suche" class="suche" autocomplete="off">
       <div class="serie-feld">
@@ -171,6 +440,7 @@
     <div id="zuletzt" class="zuletzt chips" hidden></div>
   </section>
 
+  <!-- Ausgabebereich: dynamisch gefüllt -->
   <div id="ausgabe"></div>
 
   <footer>
@@ -186,6 +456,7 @@
   const ZULETZT_SCHLUESSEL = 'serienKatalog.zuletzt';
   const $ = (id) => document.getElementById(id);
 
+  // ---------- LocalStorage-Helfer ----------
   const speicher = {
     lesen(k) { try { return localStorage.getItem(k); } catch { return null; } },
     schreiben(k, v) { try { localStorage.setItem(k, v); } catch { /* privater Modus */ } },
@@ -195,7 +466,8 @@
   const tokenLesen = () => sitzungsToken || speicher.lesen(TOKEN_SCHLUESSEL);
   const tokenSetzen = (t) => { sitzungsToken = t; speicher.schreiben(TOKEN_SCHLUESSEL, t); };
 
-  // Kleiner Baukasten: el('div', {class: 'x'}, 'Text', kind) – Text immer als textContent.
+  // ---------- DOM-Baukasten ----------
+  // el('div', {class: 'x'}, 'Text', kind) – Text immer als textContent, sicher.
   function el(tag, attrs, ...kinder) {
     const knoten = document.createElement(tag);
     for (const [k, v] of Object.entries(attrs || {})) {
@@ -211,6 +483,24 @@
     return knoten;
   }
 
+  // SVG-Icon erzeugen (z. B. Chevron, externer Link).
+  function icon(pfad, viewBox = '0 0 24 24') {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', viewBox);
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '2');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    svg.style.width = '1em';
+    svg.style.height = '1em';
+    svg.innerHTML = pfad;
+    return svg;
+  }
+  const CHEVRON = '<polyline points="6 9 12 15 18 9"></polyline>';
+  const EXTERN = '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line>';
+
+  // ---------- Staffel-Helfer ----------
   const staffelNummer = (name) => {
     const t = String(name).trim();
     if (/^\d+$/.test(t)) return Number(t);
@@ -225,12 +515,11 @@
   };
 
   // ---------- Zustand ----------
-  let aktuelleDaten = null;
+  let aktuelleDaten = null;   // Original-Antwort inkl. hoster, plus .anfrage
   let laufendeAbfrage = null;
 
   function zeigeAusgabe(...knoten) {
-    const ziel = $('ausgabe');
-    ziel.replaceChildren(...knoten);
+    $('ausgabe').replaceChildren(...knoten);
   }
 
   function zugangZeigen(hinweis) {
@@ -265,7 +554,10 @@
     ziel.hidden = liste.length === 0;
     ziel.replaceChildren(
       el('span', { class: 'leise' }, 'Zuletzt:'),
-      ...liste.map((s) => el('button', { type: 'button', class: 'chip', onclick: () => abfragen({ serie: s, staffel: 1, folge: null }) }, s)),
+      ...liste.map((s) => el('button', {
+        type: 'button', class: 'chip',
+        onclick: () => abfragen({ serie: s, staffel: 1, folge: null }),
+      }, s)),
     );
   }
 
@@ -286,7 +578,6 @@
     const zahl = (w, std) => (w !== null && /^\d{1,4}$/.test(w) ? Number(w) : std);
     return { serie, staffel: zahl(p.get('staffel'), 1), folge: zahl(p.get('folge'), null) };
   }
-
   function felderFuellen(a) {
     $('serie').value = a.serie;
     $('staffel').value = a.staffel;
@@ -306,16 +597,25 @@
     const sekunden = el('span', { class: 'leise' }, '');
     const ladeKarte = el('section', { class: 'karte lade', 'aria-live': 'polite' },
       el('div', { class: 'kreisel', 'aria-hidden': 'true' }),
-      el('div', {},
+      el('div', { class: 'lade-text' },
         el('div', {}, `Lese „${anfrage.serie}“, ${staffelName(anfrage.staffel)} …`),
         el('div', { class: 'leise' }, 'Das dauert meist rund 10 Sekunden. ', sekunden)),
     );
     zeigeAusgabe(ladeKarte);
-    const uhr = setInterval(() => { sekunden.textContent = `(${Math.round((Date.now() - start) / 1000)} s)`; }, 1000);
+    const uhr = setInterval(() => {
+      sekunden.textContent = `(${Math.round((Date.now() - start) / 1000)} s)`;
+    }, 1000);
     $('los').disabled = true;
 
-    // Die Oberfläche fordert ausdrücklich die Kurzform an (Standard des Dienstes ist original).
-    const p = new URLSearchParams({ serie: anfrage.serie, staffel: String(anfrage.staffel), ausgabe: 'kurz' });
+    // Wir fordern die Original-Ausgabe an, damit wir die Anbieter-Links je
+    // Folge (staffel.folgen[].hoster) direkt vom Server bekommen.
+    const p = new URLSearchParams({
+      serie: anfrage.serie,
+      staffel: String(anfrage.staffel),
+      ausgabe: 'original',
+    });
+    if (anfrage.folge !== null) p.set('folge', String(anfrage.folge));
+
     let antwort, daten;
     try {
       antwort = await fetch(`katalog?${p}`, {
@@ -343,7 +643,7 @@
       return zugangZeigen('Das Token wurde nicht angenommen. Bitte neu eingeben.');
     }
     if (antwort.ok && daten && daten.ok) {
-      zuletztMerken(daten.serie);
+      zuletztMerken(daten.serie.titel || anfrage.serie);
       aktuelleDaten = { ...daten, anfrage };
       return ergebnisZeigen();
     }
@@ -353,30 +653,92 @@
     return fehlerZeigen('Das Auslesen hat nicht geklappt', meldung, anfrage);
   }
 
+  // ---------- Hoster-Renderer ----------
+  // hoster kann verschieden geformt sein; wir versuchen die üblichen Formen.
+  function hosterListe(hoster) {
+    if (!hoster) return [];
+    if (Array.isArray(hoster)) {
+      return hoster.map((h) => {
+        if (h === null || h === undefined) return null;
+        if (typeof h === 'string') return { name: h, url: null };
+        if (typeof h === 'object') {
+          const name = h.name || h.anbieter || h.label || h.titel || h.host || 'Anbieter';
+          const url = h.url || h.link || h.href || h.adresse || null;
+          return { name: String(name), url: url ? String(url) : null };
+        }
+        return null;
+      }).filter(Boolean);
+    }
+    if (typeof hoster === 'object') {
+      // { AnbieterName: url, ... }
+      return Object.entries(hoster).map(([name, url]) => ({
+        name,
+        url: url ? String(url) : null,
+      }));
+    }
+    return [];
+  }
+
+  function hosterRendern(hoster) {
+    const liste = hosterListe(hoster);
+    if (!liste.length) {
+      return el('div', { class: 'anbieter-text' }, 'Keine Anbieter-Links für diese Folge.');
+    }
+    return el('div', { class: 'anbieter-liste' }, ...liste.map((h) => {
+      if (!h.url) {
+        return el('div', { class: 'anbieter' },
+          el('span', { class: 'anbieter-name' }, h.name),
+          el('span', { class: 'leise-klein' }, 'kein Link'));
+      }
+      // Externe Links: in neuem Tab öffnen, ohne Referrer.
+      const a = el('a', {
+        class: 'anbieter',
+        href: h.url,
+        target: '_blank',
+        rel: 'noopener noreferrer nofollow',
+      },
+        el('span', { class: 'anbieter-name' }, h.name),
+        el('span', { class: 'anbieter-pfeil' }, icon(EXTERN)));
+      return a;
+    }));
+  }
+
   // ---------- Darstellung ----------
   function fehlerZeigen(ueberschrift, meldung, anfrage, daten) {
     const teile = [el('h2', {}, ueberschrift), el('p', {}, meldung)];
+
     const vorschlaege = (daten && (daten.kandidaten || daten.aehnlicheTreffer)) || [];
     if (vorschlaege.length) {
       teile.push(el('div', { class: 'abschnitt' },
         el('span', { class: 'leise' }, daten.kandidaten ? 'Welche ist gemeint?' : 'Meintest du eine davon?'),
         el('div', { class: 'chips' }, vorschlaege.map((name) =>
-          el('button', { type: 'button', class: 'chip', onclick: () => abfragen({ serie: name, staffel: anfrage.staffel, folge: anfrage.folge }) }, name)))));
+          el('button', {
+            type: 'button', class: 'chip',
+            onclick: () => abfragen({ serie: name, staffel: anfrage.staffel, folge: anfrage.folge }),
+          }, name)))));
     }
-    if (daten && Array.isArray(daten.staffeln) && daten.staffeln.length) {
+    // Wenn die Antwort Staffeln enthält (z. B. Serie erkannt, aber Staffel fehlt).
+    const staffeln = daten && daten.serie && daten.serie.staffeln;
+    if (Array.isArray(staffeln) && staffeln.length) {
       teile.push(el('div', { class: 'abschnitt' },
-        el('span', { class: 'leise' }, `Vorhandene Staffeln${daten.serie ? ` von ${daten.serie}` : ''}`),
-        el('div', { class: 'chips' }, daten.staffeln.map((name) => {
+        el('span', { class: 'leise' }, `Vorhandene Staffeln${daten.serie.titel ? ` von ${daten.serie.titel}` : ''}`),
+        el('div', { class: 'chips' }, staffeln.map((name) => {
           const nr = staffelNummer(name);
           return nr === null
             ? el('span', { class: 'chip still' }, name)
-            : el('button', { type: 'button', class: 'chip', onclick: () => abfragen({ serie: daten.serie || anfrage.serie, staffel: nr, folge: null }) }, name);
+            : el('button', {
+                type: 'button', class: 'chip',
+                onclick: () => abfragen({ serie: daten.serie.titel || anfrage.serie, staffel: nr, folge: null }),
+              }, name);
         }))));
     }
-    if (!vorschlaege.length && !(daten && daten.staffeln)) {
-      teile.push(el('button', { type: 'button', class: 'knopf', style: 'width:auto', onclick: () => abfragen(anfrage, { verlauf: null }) }, 'Erneut versuchen'));
+    if (!vorschlaege.length && !(daten && daten.serie && daten.serie.staffeln)) {
+      teile.push(el('button', {
+        type: 'button', class: 'knopf', style: 'width:auto;margin-top:4px',
+        onclick: () => abfragen(anfrage, { verlauf: null }),
+      }, 'Erneut versuchen'));
     }
-    zeigeAusgabe(el('section', { class: 'karte fehler', role: 'alert' }, ...teile));
+    zeigeAusgabe(el('section', { class: 'karte fehler-karte', role: 'alert' }, ...teile));
   }
 
   function folgeWaehlen(nummer) {
@@ -388,64 +750,124 @@
     ergebnisZeigen({ scrollen: false });
   }
 
+  function folgeUmschalten(nummer) {
+    const folge = document.querySelector(`[data-folge="${nummer}"]`);
+    if (!folge) return;
+    const offen = folge.classList.toggle('offen');
+    const inhalt = folge.querySelector('.folge-inhalt');
+    if (inhalt) inhalt.hidden = !offen;
+  }
+
   function ergebnisZeigen({ scrollen = true } = {}) {
     const d = aktuelleDaten;
+    const serieTitel = d.serie.titel || d.anfrage.serie;
     const folgeNr = d.anfrage.folge;
-    const gesucht = folgeNr === null ? null : d.folgen.find((f) => f.nummer === folgeNr);
+    const folgen = d.staffel.folgen || [];
+    const gesucht = folgeNr === null ? null : folgen.find((f) => f.nummer === folgeNr);
 
+    // Kopf
     const kopf = [
-      el('h2', { class: 'titel' }, d.serie),
-      el('p', { class: 'meta' }, `${staffelName(d.staffel, d.staffeln)} · ${d.anzahlFolgen} ${d.anzahlFolgen === 1 ? 'Folge' : 'Folgen'}`),
+      el('h2', { class: 'titel' }, serieTitel),
+      el('p', { class: 'meta' },
+        staffelName(d.staffel.nummer, d.serie.staffeln),
+        el('span', { class: 'trenner' }, '·'),
+        `${folgen.length} ${folgen.length === 1 ? 'Folge' : 'Folgen'}`),
     ];
     if (folgeNr !== null) {
       kopf.push(gesucht
-        ? el('div', { class: 'treffer ja' }, el('strong', {}, `Folge ${gesucht.nummer}`), ` – „${gesucht.titel}“`)
-        : el('div', { class: 'treffer nein' }, `Folge ${folgeNr} gibt es in ${staffelName(d.staffel, d.staffeln)} nicht.`));
+        ? el('div', { class: 'treffer ja' },
+            el('span', { class: 'treffer-dot' }),
+            el('strong', {}, `Folge ${gesucht.nummer}`),
+            ` – „${gesucht.titel}“`)
+        : el('div', { class: 'treffer nein' },
+            el('span', { class: 'treffer-dot' }),
+            `Folge ${folgeNr} gibt es in ${staffelName(d.staffel.nummer, d.serie.staffeln)} nicht.`));
     }
 
+    // Staffel-Leiste
     const staffelLeiste = el('div', { class: 'abschnitt' },
       el('span', { class: 'leise' }, 'Staffeln'),
-      el('div', { class: 'chips' }, (d.staffeln || []).map((name) => {
+      el('div', { class: 'chips' }, (d.serie.staffeln || []).map((name) => {
         const nr = staffelNummer(name);
-        if (nr === d.staffel) return el('span', { class: 'chip aktiv', 'aria-current': 'true' }, name);
+        if (nr === d.staffel.nummer) return el('span', { class: 'chip aktiv', 'aria-current': 'true' }, name);
         if (nr === null) return el('span', { class: 'chip still' }, name);
-        return el('button', { type: 'button', class: 'chip', onclick: () => abfragen({ serie: d.serie, staffel: nr, folge: null }) }, name);
+        return el('button', {
+          type: 'button', class: 'chip',
+          onclick: () => abfragen({ serie: serieTitel, staffel: nr, folge: null }),
+        }, name);
       })));
 
+    // Folgenliste
     let markierteZeile = null;
-    const tabelle = el('table', {},
-      el('thead', {}, el('tr', {}, el('th', { class: 'nr' }, 'Nr.'), el('th', {}, 'Titel'))),
-      el('tbody', {}, d.folgen.map((f) => {
-        const zeile = el('tr', {
-          class: f.nummer === folgeNr ? 'markiert' : null,
+    const folgenNode = el('div', { class: 'folgen' }, ...folgen.map((f) => {
+      const hoster = hosterListe(f.hoster);
+      const hatHoster = hoster.length > 0;
+      const istMarkiert = f.nummer === folgeNr;
+      const node = el('div', {
+        class: `folge${istMarkiert ? ' markiert' : ''}`,
+        'data-folge': f.nummer,
+      },
+        el('div', {
+          class: 'folge-kopf',
           tabindex: '0',
-          onclick: () => folgeWaehlen(f.nummer),
-          onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); folgeWaehlen(f.nummer); } },
-        }, el('td', { class: 'nr' }, f.nummer), el('td', {}, f.titel || '–'));
-        if (f.nummer === folgeNr) markierteZeile = zeile;
-        return zeile;
-      })));
+          role: 'button',
+          'aria-expanded': 'false',
+          onclick: () => folgeUmschalten(f.nummer),
+          onkeydown: (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              folgeUmschalten(f.nummer);
+            }
+          },
+        },
+          el('div', { class: 'folge-nr' }, f.nummer),
+          el('div', { class: 'folge-titel' },
+            el('div', { class: 'folge-titel-text' }, f.titel || '–'),
+            el('div', { class: `folge-hoster-anzahl${hatHoster ? '' : ' leer'}` },
+              hatHoster ? `${hoster.length} Anbieter` : 'keine Anbieter')),
+          el('div', { class: 'folge-chevron' }, icon(CHEVRON))),
+        el('div', { class: 'folge-inhalt', hidden: '' },
+          hosterRendern(f.hoster)),
+      );
+      if (istMarkiert) markierteZeile = node;
+      return node;
+    }));
 
-    const teile = [...kopf, tabelle];
-    if (d.folgen.length === 0) teile.splice(kopf.length, 1, el('p', { class: 'leise' }, 'Für diese Staffel sind keine Folgen gelistet.'));
+    const teile = [...kopf];
+    if (folgen.length === 0) {
+      teile.push(el('p', { class: 'leise' }, 'Für diese Staffel sind keine Folgen gelistet.'));
+    } else {
+      teile.push(folgenNode);
+    }
     teile.push(staffelLeiste);
-    if (d.sprachen && d.sprachen.length) {
+
+    // Sprachen
+    if (d.serie.sprachen && d.serie.sprachen.length) {
       teile.push(el('div', { class: 'abschnitt' },
         el('span', { class: 'leise' }, 'Sprachen'),
-        el('div', { class: 'chips' }, d.sprachen.map((s) => el('span', { class: 'chip still' }, s)))));
+        el('div', { class: 'chips' }, d.serie.sprachen.map((s) => el('span', { class: 'chip still' }, s)))));
     }
-    const infos = Object.entries(d.infos || {}).filter(([, werte]) => werte && werte.length);
-    if (d.beschreibung || infos.length) {
-      // Beim Neuzeichnen (Klick auf eine Folge) bleibt der Abschnitt offen.
+
+    // Über die Serie (Beschreibung + Infos)
+    const infos = Object.entries(d.serie.infos || {}).filter(([, werte]) => werte && werte.length);
+    if (d.serie.beschreibung || infos.length) {
       const warOffen = !scrollen && !!document.querySelector('#ausgabe details[open]');
       teile.push(el('details', { open: warOffen },
         el('summary', {}, 'Über die Serie'),
-        d.beschreibung ? el('p', {}, d.beschreibung) : null,
-        infos.length ? el('dl', {}, infos.map(([k, werte]) => [el('dt', {}, k.replace(/:$/, '')), el('dd', {}, werte.join(', '))])) : null));
+        d.serie.beschreibung ? el('p', {}, d.serie.beschreibung) : null,
+        infos.length ? el('dl', {}, infos.map(([k, werte]) => [
+          el('dt', {}, k.replace(/:$/, '')),
+          el('dd', {}, werte.join(', ')),
+        ])) : null));
     }
 
     zeigeAusgabe(el('section', { class: 'karte' }, ...teile));
-    if (scrollen && markierteZeile) markierteZeile.scrollIntoView({ block: 'center', behavior: 'smooth' });
+
+    // Wenn eine Folge direkt angefragt wurde, diese automatisch aufklappen.
+    if (scrollen && gesucht) {
+      folgeUmschalten(gesucht.nummer);
+      if (markierteZeile) markierteZeile.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
   }
 
   // ---------- Ereignisse ----------
@@ -466,7 +888,8 @@
     tokenSetzen(t);
     sucheZeigen();
     const a = anfrageAusAdresse();
-    if (a) abfragen(a, { verlauf: null }); else $('serie').focus();
+    if (a) abfragen(a, { verlauf: null });
+    else $('serie').focus();
   });
 
   $('tokenAendern').addEventListener('click', () => zugangZeigen());
