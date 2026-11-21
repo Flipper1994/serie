@@ -12,6 +12,7 @@ import logging
 import os
 from pathlib import Path
 import sys
+import tempfile
 import time
 from urllib.parse import urlparse
 
@@ -21,7 +22,7 @@ PROJECT = RUNTIME / 'recaptcha_ia_solver'
 CACHE = Path(os.getenv('DATEN_ORDNER', str(ROOT / 'daten'))) / 'anbieter.json'
 
 
-async def aufloesen(url):
+async def aufloesen(url, workspace):
     parsed = urlparse(url)
     if parsed.scheme != 'https' or parsed.hostname not in ('burningseries.ac', 'www.burningseries.ac') or not parsed.path.startswith('/serie/'):
         raise ValueError('Ungültige Anbieter-Adresse')
@@ -46,7 +47,8 @@ async def aufloesen(url):
 
     classifier = YOLO(str(PROJECT / 'models' / 'recaptcha_classifier.pt'))
     detector = None
-    (PROJECT / 'recaptcha_images').mkdir(exist_ok=True)
+    os.chdir(workspace)
+    Path('recaptcha_images').mkdir(exist_ok=True)
 
     def erkennen(png, target, n):
         nonlocal detector
@@ -122,10 +124,10 @@ async def aufloesen(url):
     return result
 
 
-async def versuchen(url):
+async def versuchen(url, workspace):
     for _ in range(3):
         try:
-            result = await asyncio.wait_for(aufloesen(url), timeout=180)
+            result = await asyncio.wait_for(aufloesen(url, workspace), timeout=180)
             if result['ok']:
                 return result
         except asyncio.TimeoutError:
@@ -137,8 +139,8 @@ async def versuchen(url):
 if __name__ == '__main__':
     logging.basicConfig(level=logging.ERROR)
     try:
-        with contextlib.redirect_stdout(sys.stderr):
-            result = asyncio.run(asyncio.wait_for(versuchen(sys.argv[1]), timeout=600))
+        with contextlib.redirect_stdout(sys.stderr), tempfile.TemporaryDirectory(prefix='serie-anbieter-') as workspace:
+            result = asyncio.run(asyncio.wait_for(versuchen(sys.argv[1], workspace), timeout=600))
     except Exception as exc:
         result = {'ok': False, 'fehler': 'Zeitlimit bei der Anbieter-Freigabe' if isinstance(exc, asyncio.TimeoutError) else 'Anbieter-Freigabe fehlgeschlagen'}
     print(json.dumps(result))
