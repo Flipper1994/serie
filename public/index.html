@@ -382,6 +382,7 @@
     justify-content: flex-end;
   }
   .stream-button {
+    text-decoration: none;
     display: inline-flex;
     align-items: center;
     gap: 5px;
@@ -933,6 +934,10 @@
       .map((h) => ({ name: String(h.title || h.name || 'Anbieter'), url: h.href ? String(h.href) : null }));
   }
 
+  // Schalter für die Stream-Buttons; der Dienst setzt ihn beim Ausliefern
+  // aus STREAM_AKTIV. Aus: Anbieter sind einfache Links in einem neuen Tab.
+  const STREAM_AKTIV = /*STREAM_AKTIV*/false;
+
   function hosterRendern(hoster, folgeNode) {
     const liste = hosterListe(hoster);
     if (!liste.length) {
@@ -945,6 +950,12 @@
     for (const h of liste) {
       if (!h.url) {
         container.append(el('span', { class: 'stream-button', style: 'opacity:.5;cursor:default' }, h.name));
+        continue;
+      }
+      if (!STREAM_AKTIV) {
+        container.append(el('a', {
+          class: 'stream-button', href: h.url, target: '_blank', rel: 'noopener noreferrer nofollow',
+        }, h.name));
         continue;
       }
       const btn = el('button', { type: 'button', class: 'stream-button', 'data-url': h.url }, h.name);

@@ -19,6 +19,7 @@
 //           Serie aus dem Register. Beides mit demselben Token.
 // Umgebung: API_TOKEN (Pflicht), PORT (8080), HOST (127.0.0.1),
 //           CACHE_MINUTEN (60), DATEN_ORDNER (<Projekt>/daten),
+//           STREAM_AKTIV (1 schaltet /stream ein, Standard aus),
 //           STREAM_CACHE_MINUTEN (30), STREAM_MAX_PARALLEL (3),
 //           STREAM_MAX_WARTEND (5), STREAM_TIMEOUT_MS (30000),
 //           YT_DLP_PATH (Pfad zum yt-dlp-Binary, default: „yt-dlp").
@@ -47,6 +48,9 @@ const MAX_KOERPER = 64 * 1024;
 const MAX_SERIEN = 5000;
 
 // ---------- Stream-Resolver-Konfiguration ----------
+// Schalter: nur mit STREAM_AKTIV=1 ist /stream erreichbar und zeigt die
+// Oberfläche Stream-Buttons. Standard ist aus; dann sind Anbieter reine Links.
+const STREAM_AKTIV = process.env.STREAM_AKTIV === '1';
 const YT_DLP_PATH = process.env.YT_DLP_PATH || 'yt-dlp';
 const STREAM_CACHE_MS = Number(process.env.STREAM_CACHE_MINUTEN || 30) * 60 * 1000;
 const STREAM_MAX_PARALLEL = Number(process.env.STREAM_MAX_PARALLEL || 3);
@@ -377,6 +381,8 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/' || url.pathname === '/index.html') {
     return fs.readFile(OBERFLAECHE, (fehler, inhalt) => {
       if (fehler) return antworten(res, 500, { ok: false, fehler: 'Oberfläche fehlt' });
+      // Den Schalter an die Oberfläche weitergeben.
+      inhalt = Buffer.from(String(inhalt).replace('/*STREAM_AKTIV*/false', String(STREAM_AKTIV)));
       res.writeHead(200, {
         'Content-Type': 'text/html; charset=utf-8',
         'Content-Length': inhalt.length,
@@ -392,6 +398,7 @@ const server = http.createServer(async (req, res) => {
   if (!tokenStimmt(req.headers.authorization)) return antworten(res, 401, { ok: false, fehler: 'Token fehlt oder ist falsch' });
 
   if (url.pathname === '/stream') {
+    if (!STREAM_AKTIV) return antworten(res, 404, { ok: false, fehler: 'Die Stream-Auflösung ist abgeschaltet' });
     const videoUrl = (url.searchParams.get('url') || '').trim();
     if (!videoUrl || videoUrl.length > 2048) {
       return antworten(res, 400, { ok: false, fehler: 'Parameter url fehlt oder ist zu lang' });
