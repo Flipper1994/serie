@@ -18,7 +18,10 @@
 //           oder nimmt den Haken weg; { serie, entfernen: true } löscht eine
 //           Serie aus dem Register. Beides mit demselben Token.
 // Umgebung: API_TOKEN (Pflicht), PORT (8080), HOST (127.0.0.1),
-//           CACHE_MINUTEN (60), DATEN_ORDNER (<Projekt>/daten).
+//           CACHE_MINUTEN (60), DATEN_ORDNER (<Projekt>/daten),
+//           STREAM_CACHE_MINUTEN (30), STREAM_MAX_PARALLEL (3),
+//           STREAM_MAX_WARTEND (5), STREAM_TIMEOUT_MS (30000),
+//           YT_DLP_PATH (Pfad zum yt-dlp-Binary, default: „yt-dlp").
 // Status:   200 Erfolg, 400 falscher Aufruf, 401 Token fehlt/falsch,
 //           404 Serie oder Staffel fehlt, 429 zu viele wartende Anfragen,
 //           500 Register nicht speicherbar, 502 technischer Fehler beim Auslesen.
@@ -42,6 +45,13 @@ const DATEN_ORDNER = process.env.DATEN_ORDNER || path.join(__dirname, '..', 'dat
 const REGISTER_DATEI = path.join(DATEN_ORDNER, 'gesehen.json');
 const MAX_KOERPER = 64 * 1024;
 const MAX_SERIEN = 5000;
+
+// ---------- Stream-Resolver-Konfiguration ----------
+const YT_DLP_PATH = process.env.YT_DLP_PATH || 'yt-dlp';
+const STREAM_CACHE_MS = Number(process.env.STREAM_CACHE_MINUTEN || 30) * 60 * 1000;
+const STREAM_MAX_PARALLEL = Number(process.env.STREAM_MAX_PARALLEL || 3);
+const STREAM_MAX_WARTEND = Number(process.env.STREAM_MAX_WARTEND || 5);
+const STREAM_TIMEOUT_MS = Number(process.env.STREAM_TIMEOUT_MS || 30000);
 const SICHERHEITS_KOPF = {
   'Content-Security-Policy':
     "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; " +
@@ -143,6 +153,90 @@ function staffelHolen(serie, staffel) {
   }).finally(() => laufend.delete(schluessel));
   laufend.set(schluessel, lauf);
   return lauf;
+}
+
+// ---------- Stream-Resolver ----------
+// Löst die direkte Video-URL aus einer Hoster-Seite via yt-dlp auf.
+// Eigener Cache (signierte URLs gelten meist 2-24 h) und eigene Queue
+// (mehrere Hoster parallel auflösen, aber begrenzt).
+
+const streamCache = new Map();      // key = url-hash → { bis, inhalt }
+let streamLaufend = 0;               // aktuell laufende yt-dlp-Prozesse
+let streamWartend = 0;               // wartende Anfragen
+
+// SSRF-Schutz: lokale/interne Adressen ablehnen.
+function istLokal(host) {
+  const h = String(host || '').toLowerCase();
+  if (!h) return true;
+  if (h === 'localhost' || h === 'localhost.' || h.endsWith('.localhost')) return true;
+  if (h === '0.0.0.0' || h === '::' || h === '::1' || h === '[::1]') return true;
+  // IPv4 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16
+  const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (m) {
+    const [a, b] = [Number(m[1]), Number(m[2])];
+    if (a === 127 || a === 10 || a === 0) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 169 && b === 254) return true;
+  }
+  // IPv6 unique local fc00::/7
+  if (/^f[cd][0-9a-f]{2}:/.test(h) || h.startsWith('fe80:')) return true;
+  return false;
+}
+
+// Führt yt-dlp aus und liefert die erste gefundene direkte Video-URL.
+function ytDlpLauf(videoUrl) {
+  return new Promise((fertig) => {
+    execFile(
+      YT_DLP_PATH,
+      ['--print', 'urls', '--no-warnings', '--no-playlist', '--no-check-certificates', videoUrl],
+      { timeout: STREAM_TIMEOUT_MS, maxBuffer: 1024 * 1024 },
+      (fehler, stdout, stderr) => {
+        if (fehler) {
+          const msg = String(stderr || fehler.message || '').split('\n')[0].slice(0, 200);
+          return fertig({ ok: false, fehler: msg || 'yt-dlp fehlgeschlagen' });
+        }
+        const url = String(stdout || '').split('\n').map((s) => s.trim()).find(Boolean);
+        if (!url) return fertig({ ok: false, fehler: 'Keine Video-URL gefunden' });
+        fertig({ ok: true, mp4: url });
+      },
+    );
+  });
+}
+
+// Eigene Queue für Stream-Aufrufe: begrenzt parallele yt-dlp-Prozesse.
+function streamEingereiht(aufgabe) {
+  if (streamWartend >= STREAM_MAX_WARTEND) {
+    return Promise.resolve({ status: 429, inhalt: { ok: false, fehler: 'Zu viele wartende Stream-Anfragen' } });
+  }
+  streamWartend++;
+  // Warten, bis ein Slot frei ist.
+  const warte = () => {
+    if (streamLaufend < STREAM_MAX_PARALLEL) {
+      streamLaufend++;
+      streamWartend--;
+      return Promise.resolve();
+    }
+    return new Promise((r) => setTimeout(r, 50)).then(warte);
+  };
+  return warte().then(() => aufgabe()).finally(() => streamLaufend--);
+}
+
+// Liefert { status, inhalt } für eine Hoster-URL.
+function streamHolen(videoUrl) {
+  const schluessel = crypto.createHash('sha256').update(videoUrl).digest('hex');
+  const treffer = streamCache.get(schluessel);
+  if (treffer && treffer.bis > Date.now()) {
+    return Promise.resolve({ status: 200, inhalt: { ok: true, mp4: treffer.inhalt, cached: true } });
+  }
+  return streamEingereiht(async () => {
+    const ergebnis = await ytDlpLauf(videoUrl);
+    if (ergebnis.ok) {
+      streamCache.set(schluessel, { bis: Date.now() + STREAM_CACHE_MS, inhalt: ergebnis.mp4 });
+      return { status: 200, inhalt: { ok: true, mp4: ergebnis.mp4, cached: false } };
+    }
+    return { status: 502, inhalt: { ok: false, fehler: ergebnis.fehler } };
+  });
 }
 
 // ---------- Gesehen-Register ----------
@@ -292,10 +386,31 @@ const server = http.createServer(async (req, res) => {
       res.end(inhalt);
     });
   }
-  if (url.pathname !== '/katalog' && url.pathname !== '/gesehen') {
+  if (url.pathname !== '/katalog' && url.pathname !== '/gesehen' && url.pathname !== '/stream') {
     return antworten(res, 404, { ok: false, fehler: 'Unbekannter Pfad' });
   }
   if (!tokenStimmt(req.headers.authorization)) return antworten(res, 401, { ok: false, fehler: 'Token fehlt oder ist falsch' });
+
+  if (url.pathname === '/stream') {
+    const videoUrl = (url.searchParams.get('url') || '').trim();
+    if (!videoUrl || videoUrl.length > 2048) {
+      return antworten(res, 400, { ok: false, fehler: 'Parameter url fehlt oder ist zu lang' });
+    }
+    let geparsest;
+    try { geparsest = new URL(videoUrl); } catch { return antworten(res, 400, { ok: false, fehler: 'URL ist nicht gültig' }); }
+    if (geparsest.protocol !== 'http:' && geparsest.protocol !== 'https:') {
+      return antworten(res, 400, { ok: false, fehler: 'Nur http(s) ist erlaubt' });
+    }
+    if (istLokal(geparsest.hostname)) {
+      return antworten(res, 400, { ok: false, fehler: 'Lokale Adressen sind nicht erlaubt' });
+    }
+    try {
+      const { status, inhalt } = await streamHolen(videoUrl);
+      return antworten(res, status, inhalt);
+    } catch (fehler) {
+      return antworten(res, 502, { ok: false, fehler: String(fehler.message).split('\n')[0] });
+    }
+  }
 
   if (url.pathname === '/gesehen') {
     if (!schreibend) return antworten(res, 200, { ok: true, serien: Object.values(register.serien) });

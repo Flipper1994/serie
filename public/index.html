@@ -261,22 +261,22 @@
     box-shadow: 0 0 0 3px var(--akzent-weich);
     background: var(--flaeche);
   }
-  .folge-zeile { display: flex; align-items: stretch; }
+  .folge-zeile { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
   .folge-kopf {
     flex: 1;
     min-width: 0;
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px 14px 12px 4px;
+    padding: 10px 8px 10px 4px;
     cursor: pointer;
     user-select: none;
   }
-  .folge-kopf:focus-visible { outline: 2px solid var(--akzent); outline-offset: -2px; }
+  .folge-kopf:hover .folge-titel-text { color: var(--akzent); }
   .folge-nr {
     flex: none;
-    min-width: 32px;
-    height: 32px;
+    min-width: 30px;
+    height: 30px;
     border-radius: 8px;
     background: var(--flaeche-3);
     color: var(--text-2);
@@ -285,7 +285,7 @@
     justify-content: center;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
-    font-size: .9rem;
+    font-size: .875rem;
     transition: background var(--übergang), color var(--übergang);
   }
   .folge.markiert .folge-nr { background: linear-gradient(135deg, var(--akzent), var(--akzent-2)); color: var(--akzent-text); }
@@ -295,11 +295,10 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    transition: color var(--übergang);
   }
-  .folge-hoster-anzahl {
-    font-size: .75rem;
-    color: var(--text-3);
-    margin-top: 2px;
+  @media (max-width: 600px) {
+    .folge-titel-text { white-space: normal; }
   }
 
   /* ---------- Abhaken ---------- */
@@ -373,42 +372,93 @@
   .serien-stand { font-size: .85rem; color: var(--text-2); }
   .serien-stand .trenner { color: var(--text-3); margin: 0 6px; }
   .register-fuss { margin: 18px 0 0; }
-  .folge-chevron {
-    flex: none;
-    color: var(--text-3);
-    transition: transform var(--übergang), color var(--übergang);
-    width: 16px; height: 16px;
-  }
-  .folge.offen .folge-chevron { transform: rotate(180deg); color: var(--akzent); }
 
-  .folge-inhalt {
-    padding: 0 14px 14px 50px;
-    border-top: 1px solid var(--linie);
-    background: var(--flaeche);
+  /* ---------- Stream-Buttons (inline in Folge-Zeile) ---------- */
+  .stream-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    flex: none;
+    justify-content: flex-end;
   }
-  .folge-inhalt[hidden] { display: none; }
-  .anbieter-liste { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; }
-  .anbieter {
+  .stream-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 11px;
+    border-radius: var(--radius-rund);
+    border: 1px solid var(--linie);
+    background: var(--flaeche);
+    color: var(--text);
+    cursor: pointer;
+    font-size: .8rem;
+    font-weight: 600;
+    transition: all var(--übergang);
+    white-space: nowrap;
+    line-height: 1.3;
+  }
+  .stream-button:hover:not(:disabled) {
+    background: linear-gradient(135deg, var(--akzent), var(--akzent-2));
+    border-color: transparent;
+    color: var(--akzent-text);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(194, 65, 12, .3);
+  }
+  .stream-button:disabled { opacity: .55; cursor: progress; }
+  .stream-button.laadt::before {
+    content: "";
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    animation: dreh 0.7s linear infinite;
+  }
+  .stream-button.fehler { border-color: var(--fehler); color: var(--fehler); }
+  @media (max-width: 600px) {
+    .folge-zeile { flex-wrap: wrap; }
+    .stream-buttons { width: 100%; justify-content: flex-start; margin-top: 4px; padding-left: 46px; }
+  }
+
+  /* Player erscheint unter der Folge */
+  .player-box {
+    margin: 0 8px 8px;
+    border-radius: var(--radius-klein);
+    overflow: hidden;
+    background: #000;
+    border: 1px solid var(--linie);
+  }
+  .player-box video {
+    display: block;
+    width: 100%;
+    max-height: 70vh;
+    background: #000;
+  }
+  .player-fehler {
+    padding: 12px 14px;
+    background: var(--fehler-weich);
+    color: var(--fehler);
+    font-size: .85rem;
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 9px 12px;
-    border-radius: 8px;
+    gap: 8px;
+  }
+  .player-hinweis {
+    padding: 8px 12px;
     background: var(--flaeche-2);
-    border: 1px solid var(--linie);
-    color: inherit;
-    text-decoration: none;
-    transition: all var(--übergang);
+    color: var(--text-2);
+    font-size: .78rem;
+    border-bottom: 1px solid var(--linie);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   }
-  .anbieter:hover {
-    border-color: var(--akzent);
-    background: var(--akzent-weich);
-    transform: translateX(2px);
+  .player-schliessen {
+    background: none; border: 0; padding: 2px 8px;
+    color: var(--text-2); cursor: pointer;
+    font-size: 1.1rem; line-height: 1;
+    border-radius: 6px;
   }
-  .anbieter-name { flex: 1; font-weight: 500; }
-  .anbieter-pfeil { color: var(--text-3); transition: color var(--übergang); }
-  .anbieter:hover .anbieter-pfeil { color: var(--akzent); }
-  .anbieter-text { padding: 9px 12px; color: var(--text-2); font-style: italic; font-size: .875rem; }
+  .player-schliessen:hover { color: var(--text); background: var(--flaeche-3); }
 
   /* ---------- Details / Sprache / Info ---------- */
   details { margin-top: 20px; border-top: 1px solid var(--linie); padding-top: 14px; }
@@ -883,27 +933,87 @@
       .map((h) => ({ name: String(h.title || h.name || 'Anbieter'), url: h.href ? String(h.href) : null }));
   }
 
-  function hosterRendern(hoster) {
+  function hosterRendern(hoster, folgeNode) {
     const liste = hosterListe(hoster);
     if (!liste.length) {
-      return el('div', { class: 'anbieter-text' }, 'Keine Anbieter-Links für diese Folge.');
+      return el('span', { class: 'leise-klein', style: 'white-space:nowrap' }, 'keine Anbieter');
     }
-    return el('div', { class: 'anbieter-liste' }, ...liste.map((h) => {
+
+    // Container für die Stream-Buttons (inline in der Folge-Zeile)
+    const container = el('div', { class: 'stream-buttons' });
+
+    for (const h of liste) {
       if (!h.url) {
-        return el('div', { class: 'anbieter' },
-          el('span', { class: 'anbieter-name' }, h.name),
-          el('span', { class: 'leise-klein' }, 'kein Link'));
+        container.append(el('span', { class: 'stream-button', style: 'opacity:.5;cursor:default' }, h.name));
+        continue;
       }
-      // Externe Links: in neuem Tab öffnen, ohne Referrer.
-      return el('a', {
-        class: 'anbieter',
-        href: h.url,
-        target: '_blank',
-        rel: 'noopener noreferrer nofollow',
-      },
-        el('span', { class: 'anbieter-name' }, h.name),
-        el('span', { class: 'anbieter-pfeil' }, icon(EXTERN)));
-    }));
+      const btn = el('button', { type: 'button', class: 'stream-button', 'data-url': h.url }, h.name);
+      btn.addEventListener('click', async () => {
+        if (btn.classList.contains('laadt')) return;
+
+        // Bestehenden Player unter dieser Folge entfernen
+        const bestehend = folgeNode.querySelector(':scope > .player-box');
+        if (bestehend) bestehend.remove();
+
+        // Button in Ladezustand
+        btn.classList.add('laadt');
+        btn.disabled = true;
+
+        try {
+          const p = new URLSearchParams({ url: h.url });
+          const antwort = await fetch(`stream?${p}`, {
+            headers: { Authorization: `Bearer ${tokenLesen()}` },
+          });
+          const daten = await antwort.json().catch(() => null);
+
+          if (!antwort.ok || !daten || !daten.ok) {
+            const msg = (daten && daten.fehler) || `Fehler ${antwort.status}`;
+            btn.classList.remove('laadt');
+            btn.classList.add('fehler');
+            btn.disabled = false;
+            setTimeout(() => btn.classList.remove('fehler'), 3000);
+            folgeNode.append(el('div', { class: 'player-box' },
+              el('div', { class: 'player-fehler' },
+                el('span', {}, '⚠ '),
+                el('span', {}, msg))));
+            return;
+          }
+
+          // Erfolg: Player unter der Folge einblenden
+          btn.classList.remove('laadt');
+          btn.disabled = false;
+          const video = el('video', {
+            controls: '',
+            autoplay: '',
+            preload: 'metadata',
+            playsinline: '',
+          });
+          video.src = daten.mp4;
+          const schliessen = el('button', { type: 'button', class: 'player-schliessen', 'aria-label': 'Player schließen' }, '×');
+          schliessen.addEventListener('click', () => {
+            video.pause();
+            box.remove();
+          });
+          const box = el('div', { class: 'player-box' },
+            el('div', { class: 'player-hinweis' },
+              el('span', {}, `Quelle: ${h.name}${daten.cached ? ' · aus Cache' : ''}`),
+              schliessen),
+            video);
+          folgeNode.append(box);
+        } catch (fehler) {
+          btn.classList.remove('laadt');
+          btn.classList.add('fehler');
+          btn.disabled = false;
+          setTimeout(() => btn.classList.remove('fehler'), 3000);
+          folgeNode.append(el('div', { class: 'player-box' },
+            el('div', { class: 'player-fehler' },
+              el('span', {}, '⚠ '),
+              el('span', {}, 'Verbindung zum Stream-Dienst fehlgeschlagen'))));
+        }
+      });
+      container.append(btn);
+    }
+    return container;
   }
 
   // ---------- Darstellung ----------
@@ -944,13 +1054,12 @@
     zeigeAusgabe(el('section', { class: 'karte fehler-karte', role: 'alert' }, ...teile));
   }
 
-  function folgeUmschalten(nummer) {
-    const folge = document.querySelector(`[data-folge="${nummer}"]`);
-    if (!folge) return;
-    const offen = folge.classList.toggle('offen');
-    folge.querySelector('.folge-kopf').setAttribute('aria-expanded', String(offen));
-    const inhalt = folge.querySelector('.folge-inhalt');
-    if (inhalt) inhalt.hidden = !offen;
+  function folgeWaehlen(nummer) {
+    const a = aktuelleDaten.anfrage;
+    const neu = { ...a, folge: a.folge === nummer ? null : nummer };
+    aktuelleDaten.anfrage = neu;
+    adresseSetzen(neu, true);
+    ergebnisZeigen({ scrollen: false });
   }
 
   function ergebnisZeigen({ scrollen = true } = {}) {
@@ -965,8 +1074,7 @@
     const alleGesehen = folgen.length > 0 && anzahlGesehen === folgen.length;
     document.title = `${serieTitel} – Serien-Katalog`;
 
-    // Beim Neuzeichnen nach einem Haken: Aufgeklapptes und Fokus behalten.
-    const offene = scrollen ? [] : [...document.querySelectorAll('#ausgabe .folge.offen')].map((n) => n.dataset.folge);
+    // Beim Neuzeichnen nach einem Haken: Fokus behalten.
     const fokus = scrollen ? null : document.activeElement && document.activeElement.id;
 
     // Kopf
@@ -1032,26 +1140,12 @@
             })),
           el('div', {
             class: 'folge-kopf',
-            tabindex: '0',
-            role: 'button',
-            'aria-expanded': 'false',
-            onclick: () => folgeUmschalten(f.nummer),
-            onkeydown: (e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                folgeUmschalten(f.nummer);
-              }
-            },
+            onclick: () => folgeWaehlen(f.nummer),
           },
             el('div', { class: 'folge-nr' }, f.nummer),
             el('div', { class: 'folge-titel' },
-              el('div', { class: 'folge-titel-text' }, f.titel || '–'),
-              el('div', { class: 'folge-hoster-anzahl' },
-                hoster.length ? `${hoster.length} Anbieter` : 'keine Anbieter')),
-            el('div', { class: 'folge-chevron' }, icon(CHEVRON)))),
-        el('div', { class: 'folge-inhalt', hidden: '' },
-          hosterRendern(f.hoster)),
-      );
+              el('div', { class: 'folge-titel-text' }, f.titel || '–'))),
+          hosterRendern(f.hoster, node)));
       if (istMarkiert) markierteZeile = node;
       return node;
     }));
@@ -1098,12 +1192,10 @@
 
     zeigeAusgabe(el('section', { class: 'karte' }, ...teile));
 
-    for (const nr of offene) folgeUmschalten(nr);
     if (fokus && $(fokus)) $(fokus).focus({ preventScroll: true });
-    // Wurde eine Folge über die Adresse angefragt, diese aufklappen und zeigen.
-    if (scrollen && gesucht) {
-      folgeUmschalten(gesucht.nummer);
-      if (markierteZeile) markierteZeile.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    // Wurde eine Folge über die Adresse angefragt, zu ihr scrollen.
+    if (scrollen && gesucht && markierteZeile) {
+      markierteZeile.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
   }
 
