@@ -598,8 +598,6 @@
   let sitzungsToken = null;
   const tokenLesen = () => sitzungsToken || speicher.lesen(TOKEN_SCHLUESSEL);
   const tokenSetzen = (t) => { sitzungsToken = t; speicher.schreiben(TOKEN_SCHLUESSEL, t); };
-  // Die frühere „Zuletzt“-Liste ist durch das Register ersetzt.
-  speicher.loeschen('serienKatalog.zuletzt');
 
   // ---------- DOM-Baukasten ----------
   // el('div', {class: 'x'}, 'Text', kind) – Text immer als textContent, sicher.
@@ -699,14 +697,20 @@
   let registerGeladen = false;
   let registerBereit = null;    // Promise des letzten Ladevorgangs
   let speicherKette = Promise.resolve();
+  let aenderungsStand = 0;
+  let sammlungAnsicht = false;
+  let registerSignatur = '';
   const schluessel = (titel) => String(titel).trim().toLowerCase();
 
   function registerLaden() {
+    const version = aenderungsStand;
     registerBereit = (async () => {
       try {
         const { antwort, daten } = await dienst('gesehen');
         if (antwort.status === 401) { tokenAbgelehnt(); return false; }
         if (antwort.ok && daten && daten.ok) {
+          if (version !== aenderungsStand) return registerGeladen;
+          registerSignatur = JSON.stringify(daten.serien);
           register.clear();
           for (const e of daten.serien) register.set(schluessel(e.titel), e);
           registerGeladen = true;
@@ -725,31 +729,63 @@
     return new Set(s ? s.folgen : []);
   };
 
-  // Stand einer Serie: letzte gesehene Folge und die Staffel, bei der es weitergeht.
+  // Der Fortsetzpunkt folgt dem letzten Start, auch beim Einstieg mitten in einer Serie.
+  // Alte Register ohne Fortsetzpunkt bleiben lesbar.
   function stand(eintrag) {
     const nummern = Object.keys(eintrag.gesehen).map(Number).sort((a, b) => a - b);
-    if (!nummern.length) return { anzahl: 0, weiterStaffel: 1, weiterFolge: null, fertig: false, prozent: 0 };
     const anzahl = nummern.reduce((summe, n) => summe + eintrag.gesehen[n].folgen.length, 0);
     const regulaer = nummern.filter((n) => n > 0);
-    const letzteStaffel = regulaer.length ? regulaer[regulaer.length - 1] : nummern[nummern.length - 1];
-    const s = eintrag.gesehen[letzteStaffel];
-    const letzteFolge = s.folgen[s.folgen.length - 1];
-    const fertig = s.anzahlFolgen > 0 && s.folgen.length >= s.anzahlFolgen;
-    const gibtNaechste = (eintrag.staffeln || []).some((n) => staffelNummer(n) === letzteStaffel + 1);
+    const letzteStaffel = eintrag.fortsetzen?.staffel ?? (regulaer.length ? regulaer.at(-1) : nummern.at(-1));
+    let weiterStaffel = letzteStaffel ?? eintrag.besucht?.staffel ?? 1;
+    const alterStand = eintrag.gesehen[letzteStaffel];
+    let weiterFolge = eintrag.fortsetzen?.folge ?? (alterStand?.folgen.length ? Math.max(...alterStand.folgen) + 1 : null);
+    let fertig = false;
+    const staffeln = [...new Set((eintrag.staffeln || []).map(staffelNummer).filter((n) => n !== null))].sort((a, b) => a - b);
+    for (let i = 0; i <= staffeln.length; i++) {
+      const s = eintrag.gesehen[weiterStaffel];
+      const bekannt = eintrag.katalog?.[weiterStaffel] || (s?.anzahlFolgen ? Array.from({ length: s.anzahlFolgen }, (_, i) => i + 1) : null);
+      if (!bekannt) break;
+      const offen = bekannt.filter((n) => n >= (weiterFolge ?? 0) && !s?.folgen.includes(n));
+      if (offen.length) { weiterFolge = offen[0]; break; }
+      // Specials gehen nicht automatisch in reguläre Staffeln über.
+      const naechste = weiterStaffel > 0 ? staffeln.find((n) => n > weiterStaffel) : null;
+      if (naechste !== null && naechste !== undefined) { weiterStaffel = naechste; weiterFolge = null; }
+      else { weiterFolge = null; fertig = true; break; }
+    }
+    const s = eintrag.gesehen[weiterStaffel];
+    const gesamt = eintrag.katalog?.[weiterStaffel]?.length || s?.anzahlFolgen || 0;
     return {
-      anzahl, letzteStaffel, letzteFolge, fertig,
-      weiterStaffel: fertig && gibtNaechste && letzteStaffel > 0 ? letzteStaffel + 1 : letzteStaffel,
-      weiterFolge: fertig ? null : Array.from({ length: s.anzahlFolgen || letzteFolge + 1 }, (_, i) => i + 1).find((n) => !s.folgen.includes(n)) || null,
-      prozent: s.anzahlFolgen ? Math.min(100, s.folgen.length / s.anzahlFolgen * 100) : 0,
+      anzahl, fertig, weiterStaffel, weiterFolge,
+      prozent: gesamt ? Math.min(100, (s?.folgen.length || 0) / gesamt * 100) : 0,
     };
   }
 
+  function besuchSpeichern(d) {
+    const titel = d.serie.titel || d.anfrage.serie;
+    const besucht = { staffel: d.staffel.nummer, folge: d.anfrage.folge, folgen: (d.staffel.folgen || []).map((f) => f.nummer) };
+    const alt = register.get(schluessel(titel)) || { titel, gesehen: {} };
+    register.set(schluessel(titel), { ...alt, staffeln: d.serie.staffeln || [], besucht: { ...besucht, zeit: new Date().toISOString() }, katalog: { ...alt.katalog, [besucht.staffel]: besucht.folgen } });
+    aenderungsStand++;
+    speicherKette = speicherKette.then(async () => {
+      try {
+        const { antwort, daten } = await dienst('gesehen', { method: 'POST', body: JSON.stringify({ serie: titel, besucht, staffeln: d.serie.staffeln || [] }) });
+        if (antwort.status === 401) return tokenAbgelehnt();
+        if (!antwort.ok || !daten?.ok || !daten.serie) throw new Error();
+        register.set(schluessel(titel), daten.serie);
+      } catch {
+        speicherFehler = 'Die letzte Suche konnte nicht gespeichert werden. Bitte die Verbindung prüfen.';
+        if (aktuelleDaten === d) ergebnisZeigen({ scrollen: false });
+      }
+    });
+  }
+
   // Hakt Folgen der gezeigten Staffel ab oder nimmt den Haken weg.
-  function gesehenSetzen(nummern, wert) {
+  function gesehenSetzen(nummern, wert, { zeichnen = true } = {}) {
     const d = aktuelleDaten;
     const titel = d.serie.titel || d.anfrage.serie;
     const staffel = d.staffel.nummer;
     const anzahlFolgen = (d.staffel.folgen || []).length;
+    aenderungsStand++;
 
     // Sofort anzeigen; der Server bestätigt gleich mit dem gültigen Stand.
     const alt = register.get(schluessel(titel));
@@ -759,10 +795,12 @@
     for (const n of nummern) wert ? menge.add(n) : menge.delete(n);
     s.folgen = [...menge].sort((a, b) => a - b);
     if (s.folgen.length) eintrag.gesehen[staffel] = s; else delete eintrag.gesehen[staffel];
-    if (eintrag.merken || Object.keys(eintrag.gesehen).length) register.set(schluessel(titel), eintrag);
+    eintrag.fortsetzen = { staffel, folge: wert ? Math.max(...nummern) + 1 : Math.min(...nummern) };
+    if (eintrag.merken || eintrag.besucht || Object.keys(eintrag.gesehen).length) register.set(schluessel(titel), eintrag);
     else register.delete(schluessel(titel));
     speicherFehler = null;
-    ergebnisZeigen({ scrollen: false });
+    if (zeichnen) ergebnisZeigen({ scrollen: false });
+    else setTimeout(() => { if (aktuelleDaten === d) ergebnisZeigen({ scrollen: false }); }, 0);
 
     // Änderungen nacheinander senden, damit die Antworten in Reihenfolge ankommen.
     speicherKette = speicherKette.then(async () => {
@@ -789,6 +827,8 @@
 
   async function serieEntfernen(titel) {
     if (!confirm(`„${titel}“ mit allen Haken aus dem Register entfernen?`)) return;
+    aenderungsStand++;
+    await speicherKette;
     try {
       const { antwort, daten } = await dienst('gesehen', {
         method: 'POST', body: JSON.stringify({ serie: titel, entfernen: true }),
@@ -808,7 +848,7 @@
   function serienKarte(e) {
     const st = stand(e);
     const ton = [...e.titel].reduce((summe, zeichen) => (summe * 31 + zeichen.charCodeAt(0)) % 360, 0);
-    const weiter = st.anzahl ? st.fertig ? 'Staffelübersicht öffnen' : `Weiter mit Staffel ${st.weiterStaffel}${st.weiterFolge ? ` · Folge ${st.weiterFolge}` : ''}` : 'Serie entdecken';
+    const weiter = st.fertig ? 'Bis hier fertig · Übersicht öffnen' : `${st.anzahl ? 'Weiter mit' : 'Öffnen:'} Staffel ${st.weiterStaffel}${st.weiterFolge !== null ? ` · Folge ${st.weiterFolge}` : ''}`;
     return el('button', {
       type: 'button', class: 'serien-zeile',
       'aria-label': `${e.titel}: ${weiter}`,
@@ -820,7 +860,7 @@
         el('span', { class: 'poster-titel' }, e.titel.split('|')[0].replace(/\s*\(\d{4}.*$/, '').trim())),
       el('span', { class: 'serien-inhalt' },
         el('span', { class: 'serien-name' }, e.titel),
-        el('span', { class: 'serien-stand' }, st.anzahl ? `${st.anzahl} Folgen gesehen · zuletzt S${st.letzteStaffel} E${st.letzteFolge}` : 'Auf deiner Liste'),
+        el('span', { class: 'serien-stand' }, `${st.anzahl} Folgen gesehen${e.merken ? ' · Auf deiner Liste' : ''}`),
         st.anzahl ? el('span', { class: 'balken', 'aria-hidden': 'true' }, el('span', { class: 'balken-fuellung', style: `display:block;width:${st.prozent}%` })) : null,
         el('span', { class: 'serien-weiter' }, weiter)));
   }
@@ -835,6 +875,7 @@
   function merkenSetzen(wert, knopf) {
     const d = aktuelleDaten;
     const titel = d.serie.titel || d.anfrage.serie;
+    aenderungsStand++;
     knopf.disabled = true;
     knopf.textContent = 'Wird gespeichert …';
     speicherKette = speicherKette.then(async () => {
@@ -850,20 +891,22 @@
     });
   }
 
-  async function startseiteZeigen({ verlauf = null, sammlung = false } = {}) {
+  async function startseiteZeigen({ verlauf = null, sammlung = false, aktualisieren = true } = {}) {
     if (laufendeAbfrage) laufendeAbfrage.abort();
     laufendeAbfrage = null;
     $('los').disabled = false;
     aktuelleDaten = null;
+    sammlungAnsicht = sammlung;
     $('serie').value = '';
     if (verlauf && location.search) history.pushState(null, '', location.pathname);
     document.title = 'FlipperFlix · Dein Abend. Deine Serien.';
 
-    if (!registerGeladen) {
+    if (aktualisieren || !registerGeladen) {
       zeigeAusgabe(el('section', { class: 'karte lade', 'aria-live': 'polite' },
         el('div', { class: 'kreisel', 'aria-hidden': 'true' }),
         el('div', { class: 'lade-text' }, 'Lade dein Register …')));
-      await (registerBereit || registerLaden());
+      await speicherKette;
+      await (!registerGeladen && registerBereit ? registerBereit : registerLaden());
       if ($('zugang').hidden === false || aktuelleDaten || laufendeAbfrage || !tokenLesen()) return;
     }
     if (!registerGeladen) {
@@ -877,7 +920,8 @@
     }
 
     const serien = [...register.values()].sort((a, b) => String(b.geaendert).localeCompare(String(a.geaendert)));
-    const begonnen = serien.filter((e) => stand(e).anzahl > 0);
+    const begonnen = serien.filter((e) => stand(e).anzahl > 0 && !stand(e).fertig);
+    const gesucht = serien.filter((e) => e.besucht).sort((a, b) => String(b.besucht.zeit).localeCompare(String(a.besucht.zeit))).slice(0, 20);
     const featured = begonnen[0];
     const st = featured && stand(featured);
     const teile = [];
@@ -889,7 +933,8 @@
         el('button', { type: 'button', class: 'knopf', onclick: () => featured ? abfragen({ serie: featured.titel, staffel: st.weiterStaffel, folge: st.weiterFolge }) : $('serie').focus() }, featured ? '▶ Weiterschauen' : 'Serien entdecken'),
         el('button', { type: 'button', class: 'knopf sekundaer', onclick: () => $('meine-serien').scrollIntoView({ behavior: 'smooth', block: 'start' }) }, 'Meine Serien')))));
     const sammlungTeile = [];
-    if (!sammlung && begonnen.length) sammlungTeile.push(regal('Weiterschauen', begonnen, '', 'weiterschauen'));
+    if (begonnen.length) sammlungTeile.push(regal('Weiterschauen', begonnen, '', 'weiterschauen'));
+    if (gesucht.length) sammlungTeile.push(regal('Letzte Suchen', gesucht, '', 'letzte-suchen'));
     if (sammlung || !serien.length) sammlungTeile.push(regal('Meine Serien', serien, 'Deine Sammlung beginnt mit einer Serie. Suche einen Titel und tippe auf „Meine Liste“.', 'sammlung'));
     if (!sammlung && serien.length) sammlungTeile.push(regal('Meine Liste', serien.filter((e) => e.merken), 'Merke dir Serien mit „+ Meine Liste“ auf der Serienseite vor.', 'meine-liste'));
     teile.push(el('div', { id: 'meine-serien' }, ...sammlungTeile));
@@ -972,6 +1017,7 @@
     if (antwort.status === 401) return tokenAbgelehnt();
     if (antwort.ok && daten && daten.ok) {
       aktuelleDaten = { ...daten, anfrage };
+      besuchSpeichern(aktuelleDaten);
       return ergebnisZeigen();
     }
     const meldung = (daten && daten.fehler) || `Fehler ${antwort.status}`;
@@ -989,7 +1035,7 @@
       .map((h) => ({ name: String(h.title || h.name || 'Anbieter'), url: h.href ? String(h.href) : null }));
   }
 
-  function hosterRendern(hoster) {
+  function hosterRendern(hoster, folge) {
     const liste = hosterListe(hoster);
     if (!liste.length) {
       return el('span', { class: 'leise-klein', style: 'white-space:nowrap' }, 'keine Anbieter');
@@ -1010,7 +1056,14 @@
       const abspielen = new URL('video', location.href);
       adresse.hash = '';
       abspielen.searchParams.set('url', adresse.href);
-      const btn = el('a', { class: 'stream-button', href: abspielen.href, target: '_blank', rel: 'noopener noreferrer' }, h.name);
+      abspielen.searchParams.set('serie', aktuelleDaten.serie.titel || aktuelleDaten.anfrage.serie);
+      abspielen.searchParams.set('staffel', String(aktuelleDaten.staffel.nummer));
+      abspielen.searchParams.set('folge', String(folge));
+      abspielen.searchParams.set('anzahlFolgen', String(aktuelleDaten.staffel.folgen.length));
+      const btn = el('a', { class: 'stream-button', href: abspielen.href, target: '_blank', rel: 'noopener noreferrer',
+        onclick: () => gesehenSetzen([folge], true, { zeichnen: false }),
+        onauxclick: (e) => { if (e.button === 1) gesehenSetzen([folge], true, { zeichnen: false }); },
+      }, h.name);
       container.append(btn);
     }
     return container;
@@ -1154,7 +1207,7 @@
             el('div', { class: 'folge-titel' },
               el('div', { class: 'folge-titel-text' }, f.titel || '–')))));
       // Erst anhängen, wenn es node gibt: die Anbieter-Knöpfe brauchen ihn.
-      node.querySelector('.folge-zeile').append(hosterRendern(f.hoster));
+      node.querySelector('.folge-zeile').append(hosterRendern(f.hoster, f.nummer));
       if (istMarkiert) markierteZeile = node;
       return node;
     }));
@@ -1252,6 +1305,25 @@
   });
   $('zurStartseite').addEventListener('click', () => startseiteZeigen({ verlauf: 'push', sammlung: true }));
   $('zurSuche').addEventListener('click', (e) => { e.preventDefault(); $('serie').focus(); });
+
+  let abgleichLaeuft = false;
+  async function standAktualisieren() {
+    if (abgleichLaeuft || !tokenLesen() || document.hidden || laufendeAbfrage || !$('zugang').hidden) return;
+    abgleichLaeuft = true;
+    const d = aktuelleDaten;
+    try {
+      await speicherKette;
+      const vorher = registerSignatur;
+      await registerLaden();
+      if (vorher === registerSignatur || laufendeAbfrage) return;
+      if (d && aktuelleDaten === d) ergebnisZeigen({ scrollen: false });
+      else if (!aktuelleDaten) startseiteZeigen({ sammlung: sammlungAnsicht, aktualisieren: false });
+    } finally { abgleichLaeuft = false; }
+  }
+  window.addEventListener('focus', standAktualisieren);
+  window.addEventListener('storage', (e) => { if (e.key === 'flipperflix.registerStand') standAktualisieren(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) standAktualisieren(); });
+  setInterval(standAktualisieren, 15000);
 
   window.addEventListener('popstate', () => {
     if (!tokenLesen()) return;

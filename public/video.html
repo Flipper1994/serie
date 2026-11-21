@@ -250,6 +250,7 @@
       </div>
     </form>
     <div id="meldung" class="meldung" hidden></div>
+    <p id="gesehenHinweis" class="leise" role="status" hidden></p>
   </section>
 
   <section id="ladeStatus" class="karte" hidden aria-label="Ladestatus">
@@ -481,6 +482,24 @@
 
   function ladeFehler(text) { prozessZeigen({ phase: 'fehler', detail: text }); return melden(text); }
 
+  async function folgeAbhaken(link) {
+    const p = new URLSearchParams(location.search);
+    const hinweis = $('gesehenHinweis');
+    hinweis.hidden = true;
+    if (p.get('url') !== link || !p.get('serie') || !/^\d{1,4}$/.test(p.get('staffel') || '') || !/^\d{1,4}$/.test(p.get('folge') || '')) return;
+    hinweis.hidden = false;
+    hinweis.textContent = 'Folge wird als gesehen gespeichert …';
+    try {
+      const body = { serie: p.get('serie'), staffel: Number(p.get('staffel')), folgen: [Number(p.get('folge'))], gesehen: true };
+      if (/^\d{1,4}$/.test(p.get('anzahlFolgen') || '')) body.anzahlFolgen = Number(p.get('anzahlFolgen'));
+      const r = await fetch('gesehen', { method: 'POST', headers: { Authorization: `Bearer ${tokenLesen()}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(10000) });
+      const d = await r.json();
+      if (!r.ok || !d.ok) throw new Error();
+      hinweis.textContent = `Staffel ${body.staffel}, Folge ${body.folgen[0]} ist als gesehen markiert. Du kannst den Haken in der Serienübersicht entfernen.`;
+      try { localStorage.setItem('flipperflix.registerStand', String(Date.now())); } catch {}
+    } catch { hinweis.textContent = 'Die Folge konnte nicht als gesehen gespeichert werden. Bitte in der Serienübersicht manuell abhaken.'; }
+  }
+
   async function oeffnen(link) {
     link = String(link || '').trim();
     if (!/^https?:\/\//i.test(link)) return melden('Das ist kein Link. Er muss mit https:// beginnen.');
@@ -496,6 +515,8 @@
     knopf.replaceChildren(el('span', { class: 'dreh' }), 'Wird geöffnet …');
     melden('');
     try {
+      await folgeAbhaken(link);
+      if (dieser !== lauf) return;
       let antwort;
       let daten;
       let serverStatus = false;
@@ -535,7 +556,10 @@
       melden('');
       abspielen();
       zuletztSchreiben([{ link, titel: aktuell.titel }, ...zuletztLesen().filter((e) => e.link !== link)]);
-      history.replaceState(null, '', `${location.pathname}?${new URLSearchParams({ url: link })}`);
+      const adresse = new URLSearchParams(location.search);
+      if (adresse.get('url') !== link) for (const k of ['serie', 'staffel', 'folge', 'anzahlFolgen']) adresse.delete(k);
+      adresse.set('url', link);
+      history.replaceState(null, '', `${location.pathname}?${adresse}`);
     } catch (fehler) {
       if (dieser === lauf) ladeFehler(fehler.name === 'AbortError'
         ? `Keine Antwort vom Server innerhalb von ${antwortZeitlimit / 1000} Sekunden. Eine laufende Freigabe bleibt gespeichert; bitte erneut öffnen.`

@@ -39,10 +39,21 @@ ohne Token. Es läuft immer nur ein Browser gleichzeitig; Ergebnisse bleiben
 `GET /` liefert die Oberfläche (`public/index.html`): Suche nach einer Serie,
 Staffel-Leiste, Folgenliste mit Anbietern, Sprachen und „Über die Serie“. Jede
 Folge hat einen Haken für „gesehen“, dazu gibt es „Ganze Staffel gesehen“ und
-einen Zähler. Die Startseite zeigt „Weiterschauen“ und vorgemerkte Serien.
+einen Zähler. Die Startseite zeigt „Weiterschauen“, „Letzte Suchen“ und vorgemerkte Serien.
 „Meine Serien“ öffnet die gesamte Sammlung. Ein Klick auf eine begonnene Serie
-öffnet die Staffel und markiert die nächste ungesehene Folge. Der Fortschritt
+öffnet die Staffel und markiert die nächste Folge hinter dem letzten Start. Der Fortschritt
 beruht auf den Haken, es werden keine Wiedergabeminuten erfasst.
+
+Jeder erfolgreiche Serienaufruf speichert den kanonischen Titel, die Staffel und
+die tatsächlichen Folgennummern auf dem Server, auch ohne Vormerken oder Haken.
+Die letzten 20 gesuchten Serien sind geräteübergreifend sichtbar. Beim Anbieter-Klick
+und beim Öffnen des übergebenen Videos wird die zugehörige Folge automatisch als
+gesehen markiert. Manuelles Entfernen eines Hakens setzt den Fortsetzpunkt auf diese
+Folge zurück. Ein Einstieg mitten in einer Staffel geht mit der nächsten vorhandenen
+Folgennummer weiter; am Ende wird die nächste vorhandene Staffel angeboten.
+Der Serienkontext bleibt in der Videoadresse erhalten. Ein anderer eingefügter Link
+erbt ihn nicht. Änderungen werden beim Tab-Wechsel und alle 15 Sekunden im sichtbaren
+Katalog abgeglichen. Alte Gesehen-Daten bleiben lesbar.
 
 „+ Meine Liste“ merkt eine Serie ohne gesehene Folgen vor. Das Entfernen aus
 der Liste erhält vorhandene Haken. Liste und Gesehen-Stand gelten auf allen
@@ -58,7 +69,9 @@ Das Register liegt auf dem Server in `daten/gesehen.json` (Ordner änderbar mit
 `DATEN_ORDNER`) und gilt damit auf allen Geräten. Die Datei gehört nicht zum
 Repo; für eine Sicherung reicht es, sie zu kopieren.
 
-    GET  /gesehen     alle vorgemerkten oder begonnenen Serien
+    GET  /gesehen     alle gesuchten, vorgemerkten oder begonnenen Serien
+    POST /gesehen     { "serie": "Furious", "besucht": { "staffel": 1,
+                        "folge": null, "folgen": [1, 2, 3] }, "staffeln": ["1"] }
     POST /gesehen     { "serie": "Furious", "merken": true }
     POST /gesehen     { "serie": "Furious", "staffel": 1, "folgen": [1, 2],
                         "gesehen": true, "anzahlFolgen": 8, "staffeln": ["1"] }
@@ -67,6 +80,19 @@ Repo; für eine Sicherung reicht es, sie zu kopieren.
 `node scripts/test-flipperflix.js` prüft mit isoliertem Register die Liste,
 geräteübergreifendes Laden, den Erhalt der Haken und vier Bildschirmbreiten.
 Mit `TEST_BROWSER=webkit` läuft derselbe Test in WebKit.
+
+Die vollständige Regression startet unter Linux mit:
+
+    node scripts/test-suite.js
+    TEST_BROWSER=webkit node scripts/test-suite.js
+
+Voraussetzung sind Python 3, Playwright und die Browser-/Medienabhängigkeiten.
+`test-serien-e2e.js` prüft 15 Szenarien mit echtem HTTP-Dienst, echter JSON-Persistenz,
+zwei unabhängigen Browserkontexten und Dienst-Neustart: Verlauf, automatische Haken,
+manuelles Entfernen, Fortsetzen, Staffelwechsel, Altbestand, gleichzeitige Änderungen
+und Schreibfehler. Katalog-/Hosterprozesse werden kontrolliert ersetzt; die Wiedergabe
+nutzt echte öffentliche MP4-Daten über den Medien-Proxy. Die Suite startet keine
+kostenpflichtigen Captcha-Aufträge und verändert keine Produktionsdaten.
 
 ### Stream-Resolver (direkte Video-URLs)
 

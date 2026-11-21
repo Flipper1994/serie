@@ -27,7 +27,7 @@ async function main() {
       if (i === 99) throw new Error('Testdienst startet nicht');
       await pause(100);
     }
-    browser = await (process.env.TEST_BROWSER === 'webkit' ? webkit : chromium).launch();
+    browser = await (process.env.TEST_BROWSER === 'webkit' ? webkit : chromium).launch({ executablePath: process.env.TEST_BROWSER_EXECUTABLE || undefined });
     for (const breite of [320, 390, 412, 768, 1440]) for (const farbe of ['light', 'dark']) {
       const apiModus = farbe === 'dark';
       const context = await browser.newContext({ viewport: { width: breite, height: 850 }, hasTouch: breite < 768, colorScheme: farbe });

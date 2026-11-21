@@ -12,7 +12,9 @@
 //           ausgabe=kurz: flache Fassung für die Oberfläche (serie als Titel,
 //           folgen, staffeln, sprachen, beschreibung, infos).
 //           GET /health antwortet ohne Token und ohne Browserlauf.
-// Register: GET /gesehen liefert alle vorgemerkten oder begonnenen Serien.
+// Register: GET /gesehen liefert gemeinsam gesuchte, vorgemerkte und begonnene Serien.
+//           POST /gesehen mit { serie, besucht: { staffel, folge, folgen }, staffeln? }
+//           speichert einen erfolgreichen Serienaufruf und die Folgennummern.
 //           POST /gesehen mit { serie, merken: true|false } ändert die Merkliste.
 //           POST /gesehen mit JSON { serie, staffel, folgen: [Nr, …],
 //           gesehen: true|false, anzahlFolgen?, staffeln? } hakt Folgen ab
@@ -600,30 +602,43 @@ function registerAendern(eingabe) {
   const titel = typeof eingabe.serie === 'string' ? eingabe.serie.trim() : '';
   if (!titel || titel.length > 200) return falsch('serie fehlt oder ist zu lang');
   const schluessel = titel.toLowerCase();
-  const vorher = register.serien[schluessel] ? JSON.stringify(register.serien[schluessel]) : null;
+  if (['__proto__', 'constructor', 'prototype'].includes(schluessel)) return falsch('Ungültiger Serientitel');
+  const vorher = Object.hasOwn(register.serien, schluessel) ? JSON.stringify(register.serien[schluessel]) : null;
+  const { staffeln } = eingabe;
+  if (staffeln !== undefined && !(Array.isArray(staffeln) && staffeln.length <= 300 &&
+      staffeln.every((s) => typeof s === 'string' && s.length <= 60))) return falsch('staffeln muss eine Liste kurzer Texte sein');
+  if (!vorher && eingabe.entfernen !== true && Object.keys(register.serien).length >= MAX_SERIEN) return falsch('Das Register ist voll');
 
   if (eingabe.entfernen === true) {
     delete register.serien[schluessel];
+  } else if (Object.hasOwn(eingabe, 'besucht')) {
+    const b = eingabe.besucht;
+    if (!b || typeof b !== 'object' || !nummer(b.staffel) ||
+        (b.folge !== null && b.folge !== undefined && !nummer(b.folge)) ||
+        !Array.isArray(b.folgen) || b.folgen.length > 2000 || !b.folgen.every(nummer)) return falsch('Ungültiger Serienbesuch');
+    const eintrag = register.serien[schluessel] || { titel, staffeln: [], gesehen: {} };
+    if (staffeln) eintrag.staffeln = staffeln;
+    const jetzt = new Date().toISOString();
+    eintrag.besucht = { staffel: b.staffel, folge: b.folge ?? null, zeit: jetzt };
+    eintrag.katalog = { ...eintrag.katalog, [b.staffel]: [...new Set(b.folgen)].sort((a, b) => a - b) };
+    eintrag.geaendert = jetzt;
+    register.serien[schluessel] = eintrag;
   } else if (Object.hasOwn(eingabe, 'merken')) {
     if (typeof eingabe.merken !== 'boolean') return falsch('merken muss true oder false sein');
     if (!register.serien[schluessel] && Object.keys(register.serien).length >= MAX_SERIEN) return falsch('Das Register ist voll');
     const eintrag = register.serien[schluessel] || { titel, staffeln: [], gesehen: {} };
     eintrag.merken = eingabe.merken;
     eintrag.geaendert = new Date().toISOString();
-    if (eintrag.merken || Object.keys(eintrag.gesehen).length) register.serien[schluessel] = eintrag;
+    if (eintrag.merken || eintrag.besucht || Object.keys(eintrag.gesehen).length) register.serien[schluessel] = eintrag;
     else delete register.serien[schluessel];
   } else {
-    const { staffel, folgen, gesehen, anzahlFolgen, staffeln } = eingabe;
+    const { staffel, folgen, gesehen, anzahlFolgen } = eingabe;
     if (!nummer(staffel)) return falsch('staffel muss eine ganze Zahl sein');
     if (!Array.isArray(folgen) || folgen.length === 0 || folgen.length > 2000 || !folgen.every(nummer)) {
       return falsch('folgen muss eine Liste ganzer Zahlen sein');
     }
     if (typeof gesehen !== 'boolean') return falsch('gesehen muss true oder false sein');
     if (anzahlFolgen !== undefined && !nummer(anzahlFolgen)) return falsch('anzahlFolgen muss eine ganze Zahl sein');
-    if (staffeln !== undefined && !(Array.isArray(staffeln) && staffeln.length <= 300 &&
-        staffeln.every((s) => typeof s === 'string' && s.length <= 60))) {
-      return falsch('staffeln muss eine Liste kurzer Texte sein');
-    }
     if (!register.serien[schluessel] && Object.keys(register.serien).length >= MAX_SERIEN) {
       return falsch('Das Register ist voll');
     }
@@ -638,9 +653,12 @@ function registerAendern(eingabe) {
     s.folgen = [...menge].sort((a, b) => a - b);
     if (s.folgen.length) eintrag.gesehen[staffel] = s;
     else delete eintrag.gesehen[staffel];
+    // Ein Start setzt den Fortsetzpunkt hinter die angeklickte Folge.
+    // Manuelles Entfernen setzt ihn genau auf die wieder offene Folge zurück.
+    eintrag.fortsetzen = { staffel, folge: gesehen ? Math.max(...folgen) + 1 : Math.min(...folgen) };
     eintrag.geaendert = new Date().toISOString();
     // Vorgemerkte Serien bleiben auch ohne gesehene Folge erhalten.
-    if (eintrag.merken || Object.keys(eintrag.gesehen).length) register.serien[schluessel] = eintrag;
+    if (eintrag.merken || eintrag.besucht || Object.keys(eintrag.gesehen).length) register.serien[schluessel] = eintrag;
     else delete register.serien[schluessel];
   }
 
