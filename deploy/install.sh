@@ -44,6 +44,22 @@ als_serie npm install --no-save playwright
 npx playwright install-deps chromium
 als_serie npx playwright install chromium
 
+# yt-dlp für den /stream-Endpoint (direkte Video-URLs je Hoster auflösen).
+# Jeder Systembenutzer kann yt-dlp später via "yt-dlp -U" updaten.
+if ! command -v yt-dlp >/dev/null 2>&1; then
+  if command -v pip3 >/dev/null 2>&1; then
+    pip3 install --break-system-packages -q yt-dlp || pip3 install -q --user yt-dlp
+  fi
+fi
+YT_DLP=$(command -v yt-dlp || true)
+if [ -z "$YT_DLP" ]; then
+  echo "yt-dlp konnte nicht installiert werden. Bitte manuell per 'pip install yt-dlp' nachholen." >&2
+  echo "Ohne yt-dlp schlagen Anfragen an /stream fehl." >&2
+else
+  echo "yt-dlp gefunden: $YT_DLP"
+  echo "YT_DLP_PATH=$YT_DLP" >> "$ENV_DATEI"
+fi
+
 (umask 077; touch "$ENV_DATEI")
 grep -q '^API_TOKEN=' "$ENV_DATEI" || echo "API_TOKEN=$(openssl rand -hex 32)" >> "$ENV_DATEI"
 sed -i '/^HOST=/d' "$ENV_DATEI"

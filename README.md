@@ -55,6 +55,28 @@ Repo; für eine Sicherung reicht es, sie zu kopieren.
                         "gesehen": true, "anzahlFolgen": 8, "staffeln": ["1"] }
     POST /gesehen     { "serie": "Furious", "entfernen": true }
 
+### Stream-Resolver (direkte Video-URLs)
+
+`GET /stream?url=<hoster-url>` löst die direkte MP4-URL aus einer Hoster-Seite
+via `yt-dlp` auf. Token wie bei `/katalog`. Antwort:
+
+    { "ok": true, "mp4": "https://...mp4", "cached": false }
+
+Eigener Cache (30 min), eigene Queue (max. 3 parallel). Blockiert lokale
+Adressen (SSRF-Schutz). Ergebnisse landen 30 Minuten im Cache.
+
+Neue Umgebungsvariablen: `YT_DLP_PATH` (Pfad zum Binary, sonst `yt-dlp`),
+`STREAM_CACHE_MINUTEN` (30), `STREAM_MAX_PARALLEL` (3), `STREAM_MAX_WARTEND`
+(5), `STREAM_TIMEOUT_MS` (30000).
+
+`deploy/install.sh` installiert `yt-dlp` automatisch via `pip3`, falls
+vorhanden. Update später mit `yt-dlp -U`.
+
+In der Oberfläche hat jede Folge drei kleine Buttons (VOE, Vidmoly,
+Filemoon). Ein Klick ruft `/stream` auf und blendet darunter einen
+`<video>`-Player ein. Chrome zeigt automatisch den Cast-Button, wenn
+ein Chromecast im Netz ist.
+
 Einrichten (Debian/Ubuntu, als root, Node ab Version 18 vorausgesetzt):
 
     useradd --system --create-home serie
