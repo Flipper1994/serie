@@ -78,8 +78,8 @@ const MEDIEN_CORS = {
 // Die Videoseite lädt zusätzlich das Cast-SDK von Google und darf Medien einbinden.
 const VIDEO_KOPF = {
   'Content-Security-Policy':
-    "default-src 'none'; script-src 'unsafe-inline' https://www.gstatic.com; style-src 'unsafe-inline'; " +
-    "connect-src 'self'; media-src 'self' https: http: blob:; img-src 'self' data: https:; " +
+    "default-src 'none'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'unsafe-inline'; " +
+    "connect-src 'self'; worker-src 'self' blob:; media-src 'self' https: http: blob:; img-src 'self' data: https:; " +
     "base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
@@ -289,7 +289,55 @@ function streamEingereiht(aufgabe) {
 }
 
 // Liefert { status, inhalt } für eine Hoster-URL.
+const anbieterAufgaben = new Map();
+let anbieterSchlange = Promise.resolve();
+function anbieterAdresse(link) {
+  const u = new URL(link);
+  return u.protocol === 'https:' && /^(www\.)?burningseries\.ac$/.test(u.hostname) && u.pathname.startsWith('/serie/');
+}
+
+function anbieterLauf(link) {
+  return new Promise((fertig) => {
+    const python = path.join(__dirname, '..', '.anbieter', 'venv', 'bin', 'python');
+    execFile('xvfb-run', ['-a', python, path.join(__dirname, 'anbieter-link.py'), link],
+      { timeout: 620000, maxBuffer: 2 * 1024 * 1024 }, (_fehler, stdout) => {
+        try { fertig(JSON.parse(stdout)); }
+        catch { fertig({ ok: false, fehler: 'Anbieter-Auflösung ist nicht verfügbar' }); }
+      });
+  });
+}
+
+// Kurze Polling-Antworten vermeiden Timeouts im vorgeschalteten Reverse-Proxy.
+// Gleiche Links teilen eine Aufgabe; Bildmodelle laufen nur einmal gleichzeitig.
+function anbieterHolen(link) {
+  const u = new URL(link); u.hash = ''; const key = u.href;
+  for (const [k, job] of anbieterAufgaben) if (job.bis < Date.now()) anbieterAufgaben.delete(k);
+  let job = anbieterAufgaben.get(key);
+  if (!job) {
+    if ([...anbieterAufgaben.values()].filter((j) => !j.ergebnis).length >= 5) {
+      return Promise.resolve({ status: 429, inhalt: { ok: false, fehler: 'Zu viele wartende Anbieter-Anfragen' } });
+    }
+    job = { bis: Date.now() + 60 * 60 * 1000, ergebnis: null };
+    anbieterAufgaben.set(key, job);
+    anbieterSchlange = anbieterSchlange.then(async () => {
+      const hoster = await anbieterLauf(key);
+      if (!hoster.ok) return { status: 502, inhalt: hoster };
+      const ziel = new URL(hoster.url);
+      if (!/^https?:$/.test(ziel.protocol) || istLokal(ziel.hostname) || ziel.username || ziel.password || anbieterAdresse(ziel.href)) {
+        return { status: 502, inhalt: { ok: false, fehler: 'Anbieter liefert keinen gültigen Video-Link' } };
+      }
+      return streamHolen(hoster.url);
+    }).catch(() => ({ status: 502, inhalt: { ok: false, fehler: 'Anbieter-Auflösung fehlgeschlagen' } }))
+      .then((ergebnis) => {
+        job.ergebnis = ergebnis;
+        job.bis = Date.now() + (ergebnis.status === 200 ? STREAM_CACHE_MS : 30000);
+      });
+  }
+  return Promise.resolve(job.ergebnis || { status: 202, inhalt: { ok: false, wartend: true } });
+}
+
 function streamHolen(videoUrl) {
+  if (anbieterAdresse(videoUrl)) return anbieterHolen(videoUrl);
   const schluessel = crypto.createHash('sha256').update(videoUrl).digest('hex');
   const treffer = streamCache.get(schluessel);
   const antwort = (e, cached) => ({
@@ -597,6 +645,13 @@ const server = http.createServer(async (req, res) => {
   const schreibend = req.method === 'POST' && url.pathname === '/gesehen';
   if (req.method !== 'GET' && !schreibend) return antworten(res, 405, { ok: false, fehler: 'Nur GET ist erlaubt (POST nur auf /gesehen)' });
   if (url.pathname === '/health') return antworten(res, 200, { ok: true });
+  if (url.pathname === '/vendor/hls.min.js') {
+    return fs.readFile(path.join(__dirname, '..', 'public', 'vendor', 'hls.min.js'), (fehler, inhalt) => {
+      if (fehler) return antworten(res, 404, { ok: false });
+      res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff' });
+      res.end(inhalt);
+    });
+  }
   if (url.pathname === '/anbieter.user.js') {
     return fs.readFile(path.join(__dirname, '..', 'public', 'anbieter.user.js'), (fehler, inhalt) => {
       if (fehler) return antworten(res, 500, { ok: false, fehler: 'Browser-Brücke fehlt' });

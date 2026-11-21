@@ -277,6 +277,7 @@
   </footer>
 </div>
 
+<script src="vendor/hls.min.js"></script>
 <script>
 (() => {
   'use strict';
@@ -366,6 +367,7 @@
   // ---------- Link auflösen und abspielen ----------
   let aktuell = null;   // { link, titel, art, adresse (absolut, über den Server), direkt }
   let lauf = 0;
+  let hls = null;
 
   async function oeffnen(link) {
     link = String(link || '').trim();
@@ -376,9 +378,18 @@
     knopf.replaceChildren(el('span', { class: 'dreh' }), 'Wird geöffnet …');
     melden('');
     try {
-      const antwort = await fetch(`stream?${new URLSearchParams({ url: link })}`, {
-        headers: { Authorization: `Bearer ${tokenLesen()}` },
-      });
+      let antwort;
+      const ende = Date.now() + 12 * 60 * 1000;
+      do {
+        antwort = await fetch(`stream?${new URLSearchParams({ url: link })}`, {
+          headers: { Authorization: `Bearer ${tokenLesen()}` },
+        });
+        if (dieser !== lauf) return;
+        if (antwort.status !== 202) break;
+        if (Date.now() > ende) return melden('Die Anbieter-Freigabe dauert zu lange. Bitte später erneut versuchen.');
+        melden('Dein Video wird vorbereitet. Die erste Freigabe kann einige Minuten dauern …', 'hinweis');
+        await new Promise((r) => setTimeout(r, 2500));
+      } while (dieser === lauf);
       const daten = await antwort.json().catch(() => null);
       if (dieser !== lauf) return;
       if (antwort.status === 401) return tokenAbgelehnt();
@@ -393,6 +404,7 @@
         direkt: daten.mp4,
       };
       $('anbieterSchritt').hidden = true;
+      melden('');
       abspielen();
       zuletztSchreiben([{ link, titel: aktuell.titel }, ...zuletztLesen().filter((e) => e.link !== link)]);
       history.replaceState(null, '', `${location.pathname}?${new URLSearchParams({ url: link })}`);
@@ -409,8 +421,19 @@
     $('direkt').href = aktuell.direkt;
     hinweis('videoHinweis', '');
     hinweis('tvHinweis', '');
-    video.src = aktuell.adresse;
-    video.load();
+    if (hls) { hls.destroy(); hls = null; }
+    if (aktuell.art === 'hls' && !video.canPlayType('application/vnd.apple.mpegurl') && window.Hls && Hls.isSupported()) {
+      hls = new Hls();
+      hls.loadSource(aktuell.adresse);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (data.fatal) hinweis('videoHinweis', 'Das Video konnte nicht geladen werden. Bitte erneut öffnen.');
+      });
+    } else {
+      video.src = aktuell.adresse;
+      video.load();
+    }
     document.title = `${aktuell.titel} – Video-Link`;
     if (fernVerbunden()) aufFernseherLaden(0);   // Fernseher läuft schon: dort weitermachen
     else video.play().catch(() => { /* ohne Fingertipp startet es nicht von selbst */ });
@@ -552,7 +575,9 @@
         const url = new URL(quelle);
         if (url.protocol === 'https:' && /^(www\.)?burningseries\.ac$/.test(url.hostname) && !url.username && !url.password) {
           $('anbieterOeffnen').href = url.href;
-          $('anbieterSchritt').hidden = false;
+          $('linkFeld').value = url.href;
+          oeffnen(url.href);
+          return;
         }
       } catch { /* Ungültige Anbieter-Parameter ignorieren. */ }
     }

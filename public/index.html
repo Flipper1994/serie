@@ -563,14 +563,9 @@
   <div id="ausgabe"></div>
 
   <details class="karte" id="anbieterHilfe">
-    <summary>Anbieter automatisch im Videoplayer öffnen · <span id="brueckenStatus">Einrichtung nötig</span></summary>
-    <p>Einmalig <a href="https://www.tampermonkey.net/" target="_blank" rel="noopener noreferrer">Tampermonkey</a>
-      im Browser installieren, danach die <a href="anbieter.user.js">Browser-Brücke installieren</a>.
-      Auf der Anbieter-Seite auf den Player klicken und eine mögliche Sicherheitsabfrage lösen.
-      Anschließend öffnet sich automatisch unsere Videoseite mit Chromecast.</p>
-    <p>Ohne Browser-Brücke öffnet sich die Videoseite mit einer Anleitung.
-      Dort die Anbieter-Seite öffnen und den freigegebenen Hoster-Link einfügen.
-      Auf Smartphones braucht es einen Browser mit Userscript-Unterstützung; Chrome für Android unterstützt diese Erweiterung nicht.</p>
+    <summary>Video öffnen</summary>
+    <p>Auf einen Anbieter tippen. Das Video öffnet sich in einem neuen Tab.
+      Die erste Freigabe kann einige Minuten dauern. Weitere Aufrufe starten schneller.</p>
   </details>
 
   <footer>
@@ -588,12 +583,6 @@
   'use strict';
   const TOKEN_SCHLUESSEL = 'serienKatalog.token';
   const $ = (id) => document.getElementById(id);
-  function brueckenStatusZeigen() {
-    $('brueckenStatus').textContent = document.documentElement.dataset.anbieterBruecke === '1'
-      ? 'bereit' : 'Einrichtung nötig';
-  }
-  document.addEventListener('anbieter-bruecke-bereit', brueckenStatusZeigen);
-  brueckenStatusZeigen();
 
   // ---------- LocalStorage-Helfer ----------
   const speicher = {
@@ -967,12 +956,9 @@
         adresse.hash = new URLSearchParams({ serienKatalog: '1' }).toString();
       }
       const abspielen = new URL('video', location.href);
-      abspielen.searchParams.set('anbieter', adresse.href);
+      adresse.hash = '';
+      abspielen.searchParams.set('url', adresse.href);
       const btn = el('a', { class: 'stream-button', href: abspielen.href, target: '_blank', rel: 'noopener noreferrer' }, h.name);
-      // Beim Klick erneut prüfen: die Erweiterung kann nach der Seite bereit sein.
-      btn.addEventListener('click', () => {
-        btn.href = document.documentElement.dataset.anbieterBruecke === '1' ? adresse.href : abspielen.href;
-      });
       container.append(btn);
     }
     return container;

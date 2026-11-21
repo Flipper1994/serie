@@ -77,26 +77,34 @@ Der Weg zur Videoseite ist unten beschrieben.
 
 ### Vom Anbieter zur Videoseite
 
-Ohne Erweiterung öffnet ein Anbieter-Klick die Videoseite in einem neuen Tab.
-Dort die Anbieter-Seite öffnen, den Player regulär freigeben (gegebenenfalls
-Captcha lösen) und den freigegebenen Hoster-Link ins Linkfeld einfügen. Dieser
-Weg braucht keine Erweiterung und steht auch auf Android und iPhone bereit.
+Ein Anbieter-Klick öffnet `/video?url=…` in einem neuen Tab. Der Server gibt
+den Anbieter-Link mit Camoufox und lokalen Bildmodellen frei und reicht ihn
+an den bestehenden Video-Resolver weiter. Keine Erweiterung, kein Kopieren
+und kein kostenpflichtiger Captcha-Dienst. Die erste Freigabe kann mehrere
+Minuten dauern; erfolgreiche Hoster-Links bleiben sechs Stunden in
+`daten/anbieter.json`. Eine Freigabe läuft gleichzeitig, gleiche Anfragen
+teilen sich die Aufgabe. `/stream` antwortet währenddessen mit 202; die
+Videoseite fragt den Stand erneut ab, ohne lange Proxy-Verbindungen.
 
-Für die automatische Übergabe einmalig Tampermonkey und anschließend
-`https://flippercapital.duckdns.org/serie/anbieter.user.js` installieren.
-Die Einrichtung und ihr Status stehen unter der Folgenliste. Danach öffnet ein
-Anbieter-Klick die markierte BurningSeries-Seite; nach dem normalen Player-Klick
-und einer gegebenenfalls nötigen Captcha-Freigabe übernimmt das Userscript den
-sichtbaren Link oder die iframe-Adresse und wechselt im selben Tab zu
-`/serie/video?url=…`. Es löst keine Captchas und umgeht keine Browserprüfung.
-Das API-Token bleibt im Browser auf der Katalog-Domain.
+Einrichtung als Dienstbenutzer (Python 3, Git, curl und Xvfb vorausgesetzt):
 
-Die Brücke ist auf die produktive Adresse und burningseries.ac beschränkt.
-Andere Installationen müssen die `@match`-Angaben und das Ziel im Userscript
-anpassen. Chrome für Android bietet keine Unterstützung für diese Erweiterung;
-auf mobilen Geräten ist der manuelle Weg daher der Standard. Apple-Browser
-unterstützen Chromecast nicht in gleicher Weise wie Desktop-Chrome;
-Fernwiedergabe und Videoformate hängen vom Browser und Empfangsgerät ab.
+    sudo -u serie bash deploy/install-anbieter.sh
+
+Alles liegt isoliert unter `.anbieter/` und im Browser-Cache des Dienstbenutzers.
+Das Skript ändert keine Systemkonfiguration. Verwendete Bausteine:
+[Camoufox](https://github.com/daijro/camoufox),
+[recaptcha_ia_solver](https://github.com/cateyelow/recaptcha_ia_solver) und
+[cf-solver](https://github.com/VeyraAgent/cf-solver), mit festgelegten Git-Ständen.
+`deploy/patch-anbieter.py` korrigiert die RGB/BGR-Übergabe an Ultralytics und
+verhindert das erneute Abwählen statischer Bilder. Ein Google-QR-Zwang oder
+eine Netzsperre wird als Fehler angezeigt; eine automatische Freigabe ist
+daher nicht bei jeder Sicherheitsabfrage garantiert.
+
+Die Quelle bestimmt das Format: MP4 bleibt MP4, HLS wird mit dem lokal
+ausgelieferten [hls.js 1.6.15](https://github.com/video-dev/hls.js/tree/v1.6.15)
+im normalen Videoelement abgespielt. Safari verwendet seine native HLS-Unterstützung.
+Ein physischer Chromecast benötigt eine gesonderte Abnahme im eigenen WLAN;
+Apple-Browser bieten nicht dieselbe Cast-Unterstützung wie Desktop-Chrome.
 
 Beide Seiten bieten ein responsives Layout, Hell-/Dunkelmodus, Safe-Area-Abstände,
 Tastaturbedienung und Touch-Flächen von mindestens 44 px für die Anbieter-Knöpfe.
@@ -106,11 +114,16 @@ Gezielte Prüfung ohne echte Captcha-Freigabe:
     node scripts/test-anbieter.js
     TEST_BROWSER=webkit node scripts/test-anbieter.js
 
-Benötigt Playwright und den jeweiligen Browser. Die Tests bilden die reguläre
-Anbieter-Freigabe nach und prüfen in Chromium Link/iframe-Übergabe und Popup-Verhalten.
-Chromium und WebKit prüfen den Weg ohne Erweiterung und die mobile Bedienung bei
-320–1440 px in Hell/Dunkel. Die Tests ersetzen keine echte
-Captcha-Abnahme oder einen Test mit einem physischen Chromecast.
+Benötigt Playwright und den jeweiligen Browser. Prüft den neuen Tab, 202-Polling,
+automatische Player-Übergabe und mobile Bedienung bei 320–1440 px in Hell/Dunkel.
+Die Antworten sind in diesem Oberflächentest nachgebildet.
+
+Echter vollständiger Browser-Test mit Katalog, Anbieter-Freigabe und Videoframes:
+
+    API_TOKEN=… TEST_BASIS=https://flippercapital.duckdns.org/serie/ node scripts/test-video-e2e.js
+
+Optional: `TEST_ANBIETER=Vidmoly`, `TEST_FOLGEN_INDEX=1`, `TEST_SERIE=Furious`.
+Der Test gibt weder Token noch signierte Medienadressen aus.
 
 Echte Auflösung eines öffentlichen Testvideos und Range-Abruf über den Proxy:
 
