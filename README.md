@@ -95,6 +95,10 @@ Nötig ist das, weil viele Anbieter das Video nur an die Adresse herausgeben,
 die den Link aufgelöst hat, und ein Chromecast kein Token mitschicken kann.
 Der Datenverkehr des Videos läuft damit über den Server.
 
+Kennt `yt-dlp` den Anbieter nicht (z. B. VOE), öffnet `scripts/video-link.js`
+die Seite im Headless-Browser, startet den Player und liest mit, welche
+Videoadresse er lädt. Das dauert einige Sekunden länger.
+
 Einrichten (Debian/Ubuntu, als root, Node ab Version 18 vorausgesetzt):
 
     useradd --system --create-home serie

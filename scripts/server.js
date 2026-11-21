@@ -51,6 +51,7 @@ const LAUF_ZEITLIMIT_MS = 90000;
 const MAX_WARTEND = 5;
 const SKRIPT = path.join(__dirname, 'katalog.js');
 const OBERFLAECHE = path.join(__dirname, '..', 'public', 'index.html');
+const VIDEO_SKRIPT = path.join(__dirname, 'video-link.js');
 const VIDEO_SEITE = path.join(__dirname, '..', 'public', 'video.html');
 const DATEN_ORDNER = process.env.DATEN_ORDNER || path.join(__dirname, '..', 'daten');
 const REGISTER_DATEI = path.join(DATEN_ORDNER, 'gesehen.json');
@@ -222,7 +223,7 @@ function ytDlpLauf(videoUrl) {
     execFile(
       YT_DLP_PATH,
       ['--dump-single-json', '--no-warnings', '--no-playlist', '--no-check-certificates',
-        '--format', 'b', '--user-agent', MEDIEN_AGENT, '--', videoUrl],
+        '--format', 'b[ext=mp4][height<=1080]/b[ext=mp4]/b[height<=1080]/b', '--user-agent', MEDIEN_AGENT, '--', videoUrl],
       { timeout: STREAM_TIMEOUT_MS, maxBuffer: 32 * 1024 * 1024 },
       (fehler, stdout, stderr) => {
         if (fehler) {
@@ -242,6 +243,27 @@ function ytDlpLauf(videoUrl) {
           titel: typeof info.title === 'string' ? info.title.slice(0, 200) : '',
           art: hls ? 'hls' : 'datei',
           referer: typeof kopf.Referer === 'string' ? kopf.Referer.slice(0, 2048) : '',
+        });
+      },
+    );
+  });
+}
+
+// Rückfall für Anbieter, die yt-dlp nicht kennt (z. B. VOE): video-link.js
+// öffnet die Seite im Headless-Browser und liest mit, was der Player lädt.
+function browserLauf(videoUrl) {
+  return new Promise((fertig) => {
+    execFile(
+      process.execPath, [VIDEO_SKRIPT, videoUrl],
+      { timeout: 70000, maxBuffer: 1024 * 1024, env: { ...process.env, MEDIEN_AGENT } },
+      (fehler, stdout) => {
+        let d = null;
+        try { d = JSON.parse(stdout); } catch { /* unten behandelt */ }
+        if (!d) return fertig({ ok: false, fehler: 'keine lesbare Ausgabe' });
+        if (!d.ok || !/^https?:\/\//.test(String(d.url))) return fertig({ ok: false, fehler: d.fehler || 'kein Video gefunden' });
+        fertig({
+          ok: true, mp4: d.url, titel: String(d.titel || '').slice(0, 200),
+          art: d.art === 'hls' ? 'hls' : 'datei', referer: String(d.referer || '').slice(0, 2048),
         });
       },
     );
@@ -276,7 +298,13 @@ function streamHolen(videoUrl) {
   });
   if (treffer && treffer.bis > Date.now()) return Promise.resolve(antwort(treffer.inhalt, true));
   return streamEingereiht(async () => {
-    const ergebnis = await ytDlpLauf(videoUrl);
+    let ergebnis = await ytDlpLauf(videoUrl);
+    if (!ergebnis.ok) {
+      // Es läuft nur ein Browser gleichzeitig (gemeinsame Schlange mit dem Katalog).
+      const ausBrowser = await eingereiht(() => browserLauf(videoUrl));
+      if (ausBrowser.ok) ergebnis = ausBrowser;
+      else ergebnis.fehler = `${ergebnis.fehler} · Browser: ${ausBrowser.fehler}`;
+    }
     if (ergebnis.ok) {
       streamCache.set(schluessel, { bis: Date.now() + STREAM_CACHE_MS, inhalt: ergebnis });
       return antwort(ergebnis, false);
@@ -379,6 +407,18 @@ async function medienAusliefern(req, res, url) {
       antwort.once('error', () => fertig(null));
     });
     liste = !!anfang && anfang.subarray(0, 7).toString('latin1') === '#EXTM3U';
+  }
+
+  // Wiedergabelisten immer ganz holen, auch wenn der Abspieler nur einen Teil wollte.
+  if (liste && req.method === 'GET' && antwort.statusCode === 206) {
+    antwort.destroy();
+    delete kopf.Range;
+    try {
+      ({ antwort, adresse } = await quelleHolen(adresse, 'GET', kopf, abbruch.signal));
+    } catch (fehler) {
+      if (abbruch.signal.aborted) return;
+      return text(502, `Quelle nicht erreichbar: ${String(fehler.message).split('\n')[0]}`);
+    }
   }
 
   if (liste && req.method === 'GET' && antwort.statusCode === 200) {
