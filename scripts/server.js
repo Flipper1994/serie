@@ -17,16 +17,26 @@
 //           gesehen: true|false, anzahlFolgen?, staffeln? } hakt Folgen ab
 //           oder nimmt den Haken weg; { serie, entfernen: true } löscht eine
 //           Serie aus dem Register. Beides mit demselben Token.
+// Video:    GET /video liefert public/video.html: Link einfügen, abspielen,
+//           auf den Fernseher streamen. GET /stream?url=<Link> (mit Token)
+//           löst den Link auf und liefert neben der direkten Adresse (mp4)
+//           auch titel, art (datei|hls) und medien – eine signierte, zeitlich
+//           begrenzte Adresse, unter der dieser Dienst das Video durchleitet.
+//           GET /medien?… braucht kein Token (die Signatur genügt), damit
+//           auch ein Chromecast das Video laden kann.
 // Umgebung: API_TOKEN (Pflicht), PORT (8080), HOST (127.0.0.1),
 //           CACHE_MINUTEN (60), DATEN_ORDNER (<Projekt>/daten),
 //           STREAM_CACHE_MINUTEN (30), STREAM_MAX_PARALLEL (3),
 //           STREAM_MAX_WARTEND (5), STREAM_TIMEOUT_MS (30000),
-//           YT_DLP_PATH (Pfad zum yt-dlp-Binary, default: „yt-dlp").
+//           YT_DLP_PATH (Pfad zum yt-dlp-Binary, default: „yt-dlp"),
+//           MEDIEN_GUELTIG_STUNDEN (6).
 // Status:   200 Erfolg, 400 falscher Aufruf, 401 Token fehlt/falsch,
 //           404 Serie oder Staffel fehlt, 429 zu viele wartende Anfragen,
 //           500 Register nicht speicherbar, 502 technischer Fehler beim Auslesen.
 
 const http = require('http');
+const https = require('https');
+const { pipeline } = require('stream');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -41,6 +51,7 @@ const LAUF_ZEITLIMIT_MS = 90000;
 const MAX_WARTEND = 5;
 const SKRIPT = path.join(__dirname, 'katalog.js');
 const OBERFLAECHE = path.join(__dirname, '..', 'public', 'index.html');
+const VIDEO_SEITE = path.join(__dirname, '..', 'public', 'video.html');
 const DATEN_ORDNER = process.env.DATEN_ORDNER || path.join(__dirname, '..', 'daten');
 const REGISTER_DATEI = path.join(DATEN_ORDNER, 'gesehen.json');
 const MAX_KOERPER = 64 * 1024;
@@ -52,6 +63,26 @@ const STREAM_CACHE_MS = Number(process.env.STREAM_CACHE_MINUTEN || 30) * 60 * 10
 const STREAM_MAX_PARALLEL = Number(process.env.STREAM_MAX_PARALLEL || 3);
 const STREAM_MAX_WARTEND = Number(process.env.STREAM_MAX_WARTEND || 5);
 const STREAM_TIMEOUT_MS = Number(process.env.STREAM_TIMEOUT_MS || 30000);
+// Durchleitung (/medien): Gültigkeit der signierten Adressen und der Browser,
+// als der sich yt-dlp und die Durchleitung gleichermaßen ausgeben.
+const MEDIEN_GUELTIG_MS = Number(process.env.MEDIEN_GUELTIG_STUNDEN || 6) * 60 * 60 * 1000;
+const MEDIEN_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+const MEDIEN_MAX_LISTE = 2 * 1024 * 1024;
+const MEDIEN_CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Range, Content-Type',
+  'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges',
+};
+// Die Videoseite lädt zusätzlich das Cast-SDK von Google und darf Medien einbinden.
+const VIDEO_KOPF = {
+  'Content-Security-Policy':
+    "default-src 'none'; script-src 'unsafe-inline' https://www.gstatic.com; style-src 'unsafe-inline'; " +
+    "connect-src 'self'; media-src 'self' https: http: blob:; img-src 'self' data: https:; " +
+    "base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'no-referrer',
+};
 const SICHERHEITS_KOPF = {
   'Content-Security-Policy':
     "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; " +
@@ -184,21 +215,34 @@ function istLokal(host) {
   return false;
 }
 
-// Führt yt-dlp aus und liefert die erste gefundene direkte Video-URL.
+// Führt yt-dlp aus und liefert die direkte Video-URL samt Titel, Art
+// (datei = eine durchgehende Datei, hls = Wiedergabeliste) und Referer.
 function ytDlpLauf(videoUrl) {
   return new Promise((fertig) => {
     execFile(
       YT_DLP_PATH,
-      ['--print', 'urls', '--no-warnings', '--no-playlist', '--no-check-certificates', videoUrl],
-      { timeout: STREAM_TIMEOUT_MS, maxBuffer: 1024 * 1024 },
+      ['--dump-single-json', '--no-warnings', '--no-playlist', '--no-check-certificates',
+        '--format', 'b', '--user-agent', MEDIEN_AGENT, '--', videoUrl],
+      { timeout: STREAM_TIMEOUT_MS, maxBuffer: 32 * 1024 * 1024 },
       (fehler, stdout, stderr) => {
         if (fehler) {
+          if (fehler.code === 'ENOENT') return fertig({ ok: false, fehler: 'yt-dlp ist auf dem Server nicht installiert' });
           const msg = String(stderr || fehler.message || '').split('\n')[0].slice(0, 200);
           return fertig({ ok: false, fehler: msg || 'yt-dlp fehlgeschlagen' });
         }
-        const url = String(stdout || '').split('\n').map((s) => s.trim()).find(Boolean);
-        if (!url) return fertig({ ok: false, fehler: 'Keine Video-URL gefunden' });
-        fertig({ ok: true, mp4: url });
+        let info = null;
+        try { info = JSON.parse(stdout); } catch { /* unten behandelt */ }
+        const url = info && typeof info.url === 'string' ? info.url : '';
+        if (!/^https?:\/\//.test(url)) return fertig({ ok: false, fehler: 'Keine Video-URL gefunden' });
+        const kopf = info.http_headers || {};
+        const hls = /m3u8/.test(String(info.protocol || '')) || /\.m3u8(\?|$)/.test(url);
+        fertig({
+          ok: true,
+          mp4: url,
+          titel: typeof info.title === 'string' ? info.title.slice(0, 200) : '',
+          art: hls ? 'hls' : 'datei',
+          referer: typeof kopf.Referer === 'string' ? kopf.Referer.slice(0, 2048) : '',
+        });
       },
     );
   });
@@ -226,17 +270,151 @@ function streamEingereiht(aufgabe) {
 function streamHolen(videoUrl) {
   const schluessel = crypto.createHash('sha256').update(videoUrl).digest('hex');
   const treffer = streamCache.get(schluessel);
-  if (treffer && treffer.bis > Date.now()) {
-    return Promise.resolve({ status: 200, inhalt: { ok: true, mp4: treffer.inhalt, cached: true } });
-  }
+  const antwort = (e, cached) => ({
+    status: 200,
+    inhalt: { ok: true, mp4: e.mp4, cached, titel: e.titel, art: e.art, medien: medienPfad(e.mp4, e.referer) },
+  });
+  if (treffer && treffer.bis > Date.now()) return Promise.resolve(antwort(treffer.inhalt, true));
   return streamEingereiht(async () => {
     const ergebnis = await ytDlpLauf(videoUrl);
     if (ergebnis.ok) {
-      streamCache.set(schluessel, { bis: Date.now() + STREAM_CACHE_MS, inhalt: ergebnis.mp4 });
-      return { status: 200, inhalt: { ok: true, mp4: ergebnis.mp4, cached: false } };
+      streamCache.set(schluessel, { bis: Date.now() + STREAM_CACHE_MS, inhalt: ergebnis });
+      return antwort(ergebnis, false);
     }
     return { status: 502, inhalt: { ok: false, fehler: ergebnis.fehler } };
   });
+}
+
+// ---------- Durchleitung (/medien) ----------
+// Viele Anbieter geben das Video nur an die Adresse heraus, die den Link
+// aufgelöst hat (also diesen Server), oder verlangen einen Referer. Ein
+// Chromecast lädt das Video außerdem selbst und kann kein Token mitschicken.
+// Deshalb leitet der Dienst das Video unter einer signierten Adresse durch.
+const MEDIEN_SCHLUESSEL = crypto.createHmac('sha256', TOKEN).update('medien-signatur').digest();
+const medienSignatur = (ab, referer, ziel) =>
+  crypto.createHmac('sha256', MEDIEN_SCHLUESSEL).update(`${ab}\n${referer}\n${ziel}`).digest('base64url');
+
+// Relative Adresse; so stimmt sie auch hinter einem Reverse-Proxy mit Pfad.
+function medienPfad(ziel, referer, ab = Date.now() + MEDIEN_GUELTIG_MS) {
+  const p = new URLSearchParams({ ab: String(ab), s: medienSignatur(ab, referer || '', ziel) });
+  if (referer) p.set('r', referer);
+  p.set('u', ziel);
+  return `medien?${p}`;
+}
+
+// Holt die Quelle und folgt Weiterleitungen selbst, damit keine davon auf
+// eine interne Adresse führt. Liefert { antwort, adresse }.
+function quelleHolen(adresse, methode, kopf, signal, rest = 5) {
+  return new Promise((fertig, abgelehnt) => {
+    if (adresse.protocol !== 'http:' && adresse.protocol !== 'https:') return abgelehnt(new Error('Nur http(s) ist erlaubt'));
+    if (istLokal(adresse.hostname)) return abgelehnt(new Error('Lokale Adressen sind nicht erlaubt'));
+    const anfrage = (adresse.protocol === 'https:' ? https : http).request(
+      adresse, { method: methode, headers: kopf, signal, timeout: 20000 },
+      (antwort) => {
+        const weiter = [301, 302, 303, 307, 308].includes(antwort.statusCode) && antwort.headers.location;
+        if (!weiter) return fertig({ antwort, adresse });
+        antwort.resume();
+        if (rest <= 0) return abgelehnt(new Error('Zu viele Weiterleitungen'));
+        let naechste;
+        try { naechste = new URL(weiter, adresse); } catch { return abgelehnt(new Error('Ungültige Weiterleitung')); }
+        quelleHolen(naechste, methode, kopf, signal, rest - 1).then(fertig, abgelehnt);
+      },
+    );
+    anfrage.on('timeout', () => anfrage.destroy(new Error('Die Quelle antwortet nicht')));
+    anfrage.on('error', abgelehnt);
+    anfrage.end();
+  });
+}
+
+// Schreibt in einer HLS-Wiedergabeliste jede Adresse auf die Durchleitung um.
+function listeUmschreiben(text, basis, referer, ab) {
+  const um = (roh) => {
+    try { return medienPfad(new URL(roh.trim(), basis).href, referer, ab); } catch { return roh; }
+  };
+  return text.split(/\r?\n/).map((zeile) => {
+    if (!zeile.trim()) return zeile;
+    if (zeile.startsWith('#')) return zeile.replace(/URI="([^"]+)"/g, (_, adresse) => `URI="${um(adresse)}"`);
+    return um(zeile);
+  }).join('\n');
+}
+
+async function medienAusliefern(req, res, url) {
+  const text = (status, meldung) => {
+    res.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', ...MEDIEN_CORS });
+    res.end(req.method === 'HEAD' ? undefined : meldung);
+  };
+  const ziel = url.searchParams.get('u') || '';
+  const referer = url.searchParams.get('r') || '';
+  const ab = url.searchParams.get('ab') || '';
+  const erhalten = Buffer.from(url.searchParams.get('s') || '');
+  const erwartet = Buffer.from(medienSignatur(ab, referer, ziel));
+  if (erhalten.length !== erwartet.length || !crypto.timingSafeEqual(erhalten, erwartet)) return text(403, 'Signatur ungültig');
+  if (!(Number(ab) > Date.now())) return text(410, 'Der Link ist abgelaufen – das Video bitte neu öffnen');
+
+  const kopf = { 'User-Agent': MEDIEN_AGENT, Accept: '*/*', 'Accept-Encoding': 'identity' };
+  if (referer) {
+    kopf.Referer = referer;
+    try { kopf.Origin = new URL(referer).origin; } catch { /* ohne Origin */ }
+  }
+  if (req.headers.range) kopf.Range = req.headers.range;
+  const abbruch = new AbortController();
+  res.on('close', () => abbruch.abort());
+
+  let antwort, adresse;
+  try {
+    ({ antwort, adresse } = await quelleHolen(new URL(ziel), req.method, kopf, abbruch.signal));
+  } catch (fehler) {
+    if (abbruch.signal.aborted) return;
+    return text(502, `Quelle nicht erreichbar: ${String(fehler.message).split('\n')[0]}`);
+  }
+
+  const typ = String(antwort.headers['content-type'] || '');
+  const laenge = Number(antwort.headers['content-length'] || 0);
+  let anfang = null;
+  let liste = /mpegurl/i.test(typ) || /\.m3u8$/i.test(adresse.pathname);
+  // Manche Anbieter liefern Wiedergabelisten unter falschem Typ: Anfang prüfen.
+  if (!liste && req.method === 'GET' && antwort.statusCode === 200 && laenge <= MEDIEN_MAX_LISTE) {
+    anfang = await new Promise((fertig) => {
+      antwort.once('readable', () => fertig(antwort.read()));
+      antwort.once('error', () => fertig(null));
+    });
+    liste = !!anfang && anfang.subarray(0, 7).toString('latin1') === '#EXTM3U';
+  }
+
+  if (liste && req.method === 'GET' && antwort.statusCode === 200) {
+    const teile = anfang ? [anfang] : [];
+    let groesse = anfang ? anfang.length : 0;
+    try {
+      for await (const teil of antwort) {
+        groesse += teil.length;
+        if (groesse > MEDIEN_MAX_LISTE) throw new Error('Wiedergabeliste zu groß');
+        teile.push(teil);
+      }
+    } catch (fehler) {
+      antwort.destroy();
+      if (abbruch.signal.aborted) return;
+      return text(502, `Quelle nicht lesbar: ${String(fehler.message).split('\n')[0]}`);
+    }
+    const inhalt = Buffer.from(listeUmschreiben(Buffer.concat(teile).toString('utf8'), adresse, referer, ab));
+    res.writeHead(200, {
+      'Content-Type': 'application/vnd.apple.mpegurl',
+      'Content-Length': inhalt.length,
+      'Cache-Control': 'no-store',
+      ...MEDIEN_CORS,
+    });
+    return res.end(inhalt);
+  }
+
+  const ausgang = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...MEDIEN_CORS };
+  for (const name of ['content-type', 'content-length', 'content-range', 'accept-ranges', 'last-modified', 'etag']) {
+    if (antwort.headers[name]) ausgang[name] = antwort.headers[name];
+  }
+  // Nie als Webseite ausliefern: sonst liefe fremdes HTML unter dieser Adresse.
+  if (/html|javascript|xml/i.test(typ)) ausgang['content-type'] = 'application/octet-stream';
+  res.writeHead(antwort.statusCode, ausgang);
+  if (req.method === 'HEAD') { antwort.destroy(); return res.end(); }
+  if (anfang) res.write(anfang);
+  pipeline(antwort, res, () => {});
 }
 
 // ---------- Gesehen-Register ----------
@@ -371,17 +549,23 @@ const ganzzahl = (wert) => /^\d{1,4}$/.test(wert);
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
+  if (url.pathname === '/medien') {
+    if (req.method === 'OPTIONS') { res.writeHead(204, { ...MEDIEN_CORS, 'Access-Control-Max-Age': '86400' }); return res.end(); }
+    if (req.method !== 'GET' && req.method !== 'HEAD') return antworten(res, 405, { ok: false, fehler: 'Nur GET ist erlaubt' });
+    return medienAusliefern(req, res, url).catch(() => res.destroy());
+  }
   const schreibend = req.method === 'POST' && url.pathname === '/gesehen';
   if (req.method !== 'GET' && !schreibend) return antworten(res, 405, { ok: false, fehler: 'Nur GET ist erlaubt (POST nur auf /gesehen)' });
   if (url.pathname === '/health') return antworten(res, 200, { ok: true });
-  if (url.pathname === '/' || url.pathname === '/index.html') {
-    return fs.readFile(OBERFLAECHE, (fehler, inhalt) => {
+  const seite = { '/': OBERFLAECHE, '/index.html': OBERFLAECHE, '/video': VIDEO_SEITE, '/video.html': VIDEO_SEITE }[url.pathname];
+  if (seite) {
+    return fs.readFile(seite, (fehler, inhalt) => {
       if (fehler) return antworten(res, 500, { ok: false, fehler: 'Oberfläche fehlt' });
       res.writeHead(200, {
         'Content-Type': 'text/html; charset=utf-8',
         'Content-Length': inhalt.length,
         'Cache-Control': 'no-cache',
-        ...SICHERHEITS_KOPF,
+        ...(seite === VIDEO_SEITE ? VIDEO_KOPF : SICHERHEITS_KOPF),
       });
       res.end(inhalt);
     });

@@ -77,6 +77,24 @@ Filemoon). Ein Klick ruft `/stream` auf und blendet darunter einen
 `<video>`-Player ein. Chrome zeigt automatisch den Cast-Button, wenn
 ein Chromecast im Netz ist.
 
+### Video-Link abspielen und auf den Fernseher streamen
+
+`GET /video` liefert eine zweite Seite (`public/video.html`): einen Video-Link
+einfügen, „Video öffnen“, und das Video läuft im Browser. „Auf Fernseher
+streamen“ schickt es an einen Chromecast im selben WLAN (Chrome am Handy oder
+Rechner); danach dient die Seite als Fernbedienung (Pause, ±30 s, Position).
+Ein Aufruf mit `video?url=<Link>` öffnet das Video sofort. Die Seite nutzt
+dasselbe Token wie der Katalog und merkt sich die zuletzt geöffneten Links im
+Browser.
+
+`/stream` liefert dafür zusätzlich `titel`, `art` (`datei` oder `hls`) und
+`medien`: eine signierte, sechs Stunden gültige Adresse (`MEDIEN_GUELTIG_STUNDEN`),
+unter der der Dienst das Video durchleitet (`GET /medien?…`, ohne Token, mit
+Vorspulen; HLS-Wiedergabelisten werden auf die Durchleitung umgeschrieben).
+Nötig ist das, weil viele Anbieter das Video nur an die Adresse herausgeben,
+die den Link aufgelöst hat, und ein Chromecast kein Token mitschicken kann.
+Der Datenverkehr des Videos läuft damit über den Server.
+
 Einrichten (Debian/Ubuntu, als root, Node ab Version 18 vorausgesetzt):
 
     useradd --system --create-home serie

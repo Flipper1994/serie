@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="light dark">
+<title>Video-Link</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='6' width='26' height='18' rx='3' fill='%23c2410c'/%3E%3Cpath d='M13 11v8l7-4z' fill='%23fff'/%3E%3Crect x='10' y='26' width='12' height='2' rx='1' fill='%23c2410c'/%3E%3C/svg%3E">
+<style>
+  /* ---------- Design-Tokens ---------- */
+  :root {
+    --bg: #f6f4f1;
+    --flaeche: #ffffff;
+    --flaeche-2: #f0ede8;
+    --flaeche-3: #ebe6df;
+    --text: #1c1a17;
+    --text-2: #5f5a52;
+    --text-3: #8a8478;
+    --linie: #e3ded6;
+    --linie-2: #d4cdc2;
+    --akzent: #c2410c;
+    --akzent-2: #ea580c;
+    --akzent-text: #ffffff;
+    --akzent-weich: #fdeee5;
+    --fehler: #b42318;
+    --fehler-weich: #fdecea;
+    --ok-weich: #e8f3ec;
+    --ok: #1f6f43;
+    --warn: #b45309;
+    --warn-weich: #fdf3e3;
+    --schatten-1: 0 1px 2px rgba(28, 26, 23, .05);
+    --schatten-2: 0 4px 16px rgba(28, 26, 23, .06), 0 1px 3px rgba(28, 26, 23, .04);
+    --schatten-3: 0 12px 32px rgba(28, 26, 23, .08), 0 4px 12px rgba(28, 26, 23, .05);
+    --radius: 16px;
+    --radius-klein: 10px;
+    --radius-rund: 999px;
+    --übergang: 160ms cubic-bezier(.4, 0, .2, 1);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f0e0c;
+      --flaeche: #1c1b18;
+      --flaeche-2: #26241f;
+      --flaeche-3: #312e28;
+      --text: #f2efe9;
+      --text-2: #a9a299;
+      --text-3: #78726a;
+      --linie: #34312b;
+      --linie-2: #423e36;
+      --akzent: #f97316;
+      --akzent-2: #fb923c;
+      --akzent-text: #1a0d03;
+      --akzent-weich: #3a2112;
+      --fehler: #f97066;
+      --fehler-weich: #3b1a17;
+      --ok-weich: #16291e;
+      --ok: #6fcf97;
+      --warn: #fbbf24;
+      --warn-weich: #2d2410;
+      --schatten-1: 0 1px 2px rgba(0, 0, 0, .3);
+      --schatten-2: 0 4px 16px rgba(0, 0, 0, .35);
+      --schatten-3: 0 12px 32px rgba(0, 0, 0, .5);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  [hidden] { display: none !important; }
+  .rahmen { max-width: 820px; margin: 0 auto; padding: 24px 16px 56px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+  h1 { font-size: 1.4rem; margin: 0; letter-spacing: -.015em; font-weight: 700; }
+  h1 span {
+    background: linear-gradient(135deg, var(--akzent), var(--akzent-2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  h2 { font-size: 1.05rem; margin: 0 0 12px; overflow-wrap: anywhere; }
+  .leise { color: var(--text-2); font-size: .875rem; }
+
+  button, input { font: inherit; color: inherit; }
+  button { -webkit-tap-highlight-color: transparent; }
+  .knopf {
+    border: 0; border-radius: var(--radius-klein);
+    background: linear-gradient(135deg, var(--akzent), var(--akzent-2));
+    color: var(--akzent-text); font-weight: 650;
+    padding: 12px 20px; min-height: 46px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    transition: transform var(--übergang), box-shadow var(--übergang), opacity var(--übergang);
+    box-shadow: 0 1px 2px rgba(194, 65, 12, .25);
+  }
+  .knopf:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(194, 65, 12, .3); }
+  .knopf:disabled { opacity: .55; cursor: progress; }
+  .knopf.zweit {
+    background: var(--flaeche); color: var(--text);
+    border: 1px solid var(--linie-2); box-shadow: none; font-weight: 600;
+  }
+  .knopf.zweit:hover:not(:disabled) { border-color: var(--akzent); box-shadow: none; }
+  .knopf.breit { width: 100%; }
+  .knopf svg { width: 1.2em; height: 1.2em; flex: none; }
+  .knopf-text {
+    background: none; border: 0; padding: 4px 0;
+    color: var(--text-2); cursor: pointer;
+    font-size: .875rem; text-decoration: underline; text-underline-offset: 3px;
+  }
+  .knopf-text:hover { color: var(--akzent); }
+
+  .karte {
+    background: var(--flaeche); border: 1px solid var(--linie);
+    border-radius: var(--radius); box-shadow: var(--schatten-2); padding: 20px;
+  }
+  .karte + .karte { margin-top: 16px; }
+  label { display: block; font-size: .8rem; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
+  input[type=url], input[type=password] {
+    width: 100%; min-height: 46px; padding: 10px 14px;
+    border: 1px solid var(--linie-2); border-radius: var(--radius-klein);
+    background: var(--flaeche); outline: none;
+    transition: border-color var(--übergang), box-shadow var(--übergang);
+  }
+  input:focus { border-color: var(--akzent); box-shadow: 0 0 0 3px var(--akzent-weich); }
+  .reihe { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  .reihe .knopf { flex: 1 1 140px; }
+
+  .meldung {
+    margin-top: 12px; padding: 12px 14px; border-radius: var(--radius-klein);
+    font-size: .9rem; overflow-wrap: anywhere;
+  }
+  .meldung.fehler { background: var(--fehler-weich); color: var(--fehler); }
+  .meldung.hinweis { background: var(--warn-weich); color: var(--warn); }
+  .meldung.gut { background: var(--ok-weich); color: var(--ok); }
+
+  video {
+    display: block; width: 100%; max-height: 70vh;
+    background: #000; border-radius: var(--radius-klein);
+  }
+  .fern {
+    margin-top: 12px; padding: 14px; border-radius: var(--radius-klein);
+    background: var(--akzent-weich); border: 1px solid var(--linie);
+  }
+  .fern-kopf { font-weight: 650; overflow-wrap: anywhere; }
+  .fern input[type=range] { width: 100%; margin: 10px 0 2px; accent-color: var(--akzent); }
+  .fern-zeit { display: flex; justify-content: space-between; font-size: .8rem; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .dreh {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid currentColor; border-top-color: transparent;
+    animation: dreh .7s linear infinite;
+  }
+  @keyframes dreh { to { transform: rotate(360deg); } }
+
+  .zuletzt { list-style: none; margin: 0; padding: 0; }
+  .zuletzt li { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--linie); }
+  .zuletzt li:first-child { border-top: 0; }
+  .zuletzt .eintrag {
+    flex: 1; min-width: 0; text-align: left; background: none; border: 0;
+    padding: 10px 0; cursor: pointer;
+  }
+  .zuletzt .eintrag:hover .name { color: var(--akzent); }
+  .zuletzt .name { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .zuletzt .quelle { display: block; font-size: .8rem; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .zuletzt .weg {
+    background: none; border: 0; cursor: pointer; color: var(--text-3);
+    font-size: 1.3rem; line-height: 1; padding: 8px 6px;
+  }
+  .zuletzt .weg:hover { color: var(--fehler); }
+
+  footer {
+    margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--linie);
+    display: flex; justify-content: flex-end; gap: 16px; flex-wrap: wrap;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="rahmen">
+  <header>
+    <h1>Video-<span>Link</span></h1>
+    <a class="knopf-text" href="./">Zu den Serien</a>
+  </header>
+
+  <!-- Zugangskarte: nur ohne Token sichtbar -->
+  <section id="zugang" class="karte" hidden>
+    <form id="zugangForm">
+      <label for="tokenFeld">Zugangs-Token</label>
+      <input id="tokenFeld" type="password" autocomplete="current-password" required placeholder="Token einfügen">
+      <p id="zugangHinweis" class="leise" style="margin:8px 0 12px">Dasselbe Token wie beim Serien-Katalog. Wird nur in diesem Browser gespeichert.</p>
+      <button class="knopf breit" type="submit">Speichern</button>
+    </form>
+  </section>
+
+  <!-- Link einfügen -->
+  <section id="eingabe" class="karte" hidden>
+    <form id="linkForm" autocomplete="off">
+      <label for="linkFeld">Video-Link</label>
+      <input id="linkFeld" type="url" required maxlength="2048" inputmode="url" placeholder="https://…" enterkeyhint="go">
+      <div class="reihe">
+        <button id="einfuegen" class="knopf zweit" type="button">Einfügen</button>
+        <button id="oeffnen" class="knopf" type="submit">Video öffnen</button>
+      </div>
+    </form>
+    <div id="meldung" class="meldung" hidden></div>
+  </section>
+
+  <!-- Player -->
+  <section id="spieler" class="karte" hidden>
+    <h2 id="titel"></h2>
+    <video id="video" controls playsinline preload="metadata"></video>
+    <div id="videoHinweis" class="meldung hinweis" hidden></div>
+
+    <div id="fern" class="fern" hidden>
+      <div id="fernKopf" class="fern-kopf"></div>
+      <input id="fernLeiste" type="range" min="0" max="0" step="1" value="0" aria-label="Position">
+      <div class="fern-zeit"><span id="fernJetzt">0:00</span><span id="fernDauer">0:00</span></div>
+      <div class="reihe">
+        <button id="fernZurueck" class="knopf zweit" type="button">−30 s</button>
+        <button id="fernPause" class="knopf" type="button">Pause</button>
+        <button id="fernVor" class="knopf zweit" type="button">+30 s</button>
+      </div>
+      <div class="reihe">
+        <button id="fernEnde" class="knopf zweit" type="button">Übertragung beenden</button>
+      </div>
+    </div>
+
+    <div class="reihe">
+      <button id="aufTv" class="knopf" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path><line x1="2" y1="20" x2="2.01" y2="20"></line></svg>
+        <span>Auf Fernseher streamen</span>
+      </button>
+    </div>
+    <div id="tvHinweis" class="meldung hinweis" hidden></div>
+    <p class="leise" style="margin:12px 0 0">
+      Das Video läuft über diesen Server, damit auch der Fernseher es laden kann.
+      <a id="direkt" class="knopf-text" href="#" target="_blank" rel="noopener noreferrer">Direkt beim Anbieter öffnen</a>
+    </p>
+  </section>
+
+  <!-- Zuletzt geöffnet -->
+  <section id="zuletztKarte" class="karte" hidden>
+    <h2>Zuletzt geöffnet</h2>
+    <ul id="zuletzt" class="zuletzt"></ul>
+  </section>
+
+  <footer>
+    <button id="tokenAendern" class="knopf-text" type="button" hidden>Token ändern</button>
+  </footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const TOKEN_SCHLUESSEL = 'serienKatalog.token';   // gemeinsam mit dem Serien-Katalog
+  const ZULETZT_SCHLUESSEL = 'serienKatalog.videos';
+  const MAX_ZULETZT = 12;
+  const $ = (id) => document.getElementById(id);
+  const video = $('video');
+
+  const speicher = {
+    lesen(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    schreiben(k, v) { try { localStorage.setItem(k, v); } catch { /* privater Modus */ } },
+    loeschen(k) { try { localStorage.removeItem(k); } catch { /* egal */ } },
+  };
+  let sitzungsToken = null;
+  const tokenLesen = () => sitzungsToken || speicher.lesen(TOKEN_SCHLUESSEL);
+  const tokenSetzen = (t) => { sitzungsToken = t; speicher.schreiben(TOKEN_SCHLUESSEL, t); };
+
+  function el(tag, attrs, ...kinder) {
+    const knoten = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (k === 'class') knoten.className = v;
+      else knoten.setAttribute(k, v);
+    }
+    for (const kind of kinder) knoten.append(kind instanceof Node ? kind : document.createTextNode(String(kind)));
+    return knoten;
+  }
+
+  const zeit = (s) => {
+    s = Math.max(0, Math.floor(s || 0));
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = String(s % 60).padStart(2, '0');
+    return h ? `${h}:${String(m).padStart(2, '0')}:${r}` : `${m}:${r}`;
+  };
+  const hostVon = (link) => { try { return new URL(link).hostname.replace(/^www\./, ''); } catch { return ''; } };
+
+  function melden(text, art = 'fehler') {
+    const m = $('meldung');
+    m.hidden = !text;
+    m.className = `meldung ${art}`;
+    m.textContent = text || '';
+  }
+  function hinweis(id, text) {
+    $(id).hidden = !text;
+    $(id).textContent = text || '';
+  }
+
+  // ---------- Zugang ----------
+  function zugangZeigen(text) {
+    for (const id of ['eingabe', 'spieler', 'zuletztKarte', 'tokenAendern']) $(id).hidden = true;
+    video.pause();
+    $('zugang').hidden = false;
+    if (text) $('zugangHinweis').textContent = text;
+    $('tokenFeld').value = '';
+    $('tokenFeld').focus();
+  }
+  function tokenAbgelehnt() {
+    speicher.loeschen(TOKEN_SCHLUESSEL);
+    sitzungsToken = null;
+    zugangZeigen('Das Token wurde nicht angenommen. Bitte neu eingeben.');
+  }
+
+  // ---------- Zuletzt geöffnet (nur in diesem Browser) ----------
+  function zuletztLesen() {
+    try {
+      const liste = JSON.parse(speicher.lesen(ZULETZT_SCHLUESSEL) || '[]');
+      return Array.isArray(liste) ? liste.filter((e) => e && typeof e.link === 'string') : [];
+    } catch { return []; }
+  }
+  function zuletztSchreiben(liste) {
+    speicher.schreiben(ZULETZT_SCHLUESSEL, JSON.stringify(liste.slice(0, MAX_ZULETZT)));
+    zuletztZeigen();
+  }
+  function zuletztZeigen() {
+    const liste = zuletztLesen();
+    $('zuletztKarte').hidden = !liste.length || !$('zugang').hidden;
+    $('zuletzt').replaceChildren(...liste.map((e) => {
+      const eintrag = el('button', { type: 'button', class: 'eintrag' },
+        el('span', { class: 'name' }, e.titel || e.link),
+        el('span', { class: 'quelle' }, hostVon(e.link)));
+      eintrag.addEventListener('click', () => { $('linkFeld').value = e.link; oeffnen(e.link); });
+      const weg = el('button', { type: 'button', class: 'weg', 'aria-label': 'Aus der Liste entfernen' }, '×');
+      weg.addEventListener('click', () => zuletztSchreiben(zuletztLesen().filter((x) => x.link !== e.link)));
+      return el('li', {}, eintrag, weg);
+    }));
+  }
+
+  // ---------- Link auflösen und abspielen ----------
+  let aktuell = null;   // { link, titel, art, adresse (absolut, über den Server), direkt }
+  let lauf = 0;
+
+  async function oeffnen(link) {
+    link = String(link || '').trim();
+    if (!/^https?:\/\//i.test(link)) return melden('Das ist kein Link. Er muss mit https:// beginnen.');
+    const dieser = ++lauf;
+    const knopf = $('oeffnen');
+    knopf.disabled = true;
+    knopf.replaceChildren(el('span', { class: 'dreh' }), 'Wird geöffnet …');
+    melden('');
+    try {
+      const antwort = await fetch(`stream?${new URLSearchParams({ url: link })}`, {
+        headers: { Authorization: `Bearer ${tokenLesen()}` },
+      });
+      const daten = await antwort.json().catch(() => null);
+      if (dieser !== lauf) return;
+      if (antwort.status === 401) return tokenAbgelehnt();
+      if (!antwort.ok || !daten || !daten.ok || !daten.medien) {
+        return melden(`Der Link ließ sich nicht öffnen: ${(daten && daten.fehler) || `Fehler ${antwort.status}`}`);
+      }
+      aktuell = {
+        link,
+        titel: daten.titel || hostVon(link) || 'Video',
+        art: daten.art === 'hls' ? 'hls' : 'datei',
+        adresse: new URL(daten.medien, location.href).href,
+        direkt: daten.mp4,
+      };
+      abspielen();
+      zuletztSchreiben([{ link, titel: aktuell.titel }, ...zuletztLesen().filter((e) => e.link !== link)]);
+      history.replaceState(null, '', `${location.pathname}?${new URLSearchParams({ url: link })}`);
+    } catch {
+      if (dieser === lauf) melden('Der Server ist gerade nicht erreichbar.');
+    } finally {
+      if (dieser === lauf) { knopf.disabled = false; knopf.textContent = 'Video öffnen'; }
+    }
+  }
+
+  function abspielen() {
+    $('spieler').hidden = false;
+    $('titel').textContent = aktuell.titel;
+    $('direkt').href = aktuell.direkt;
+    hinweis('videoHinweis', '');
+    hinweis('tvHinweis', '');
+    video.src = aktuell.adresse;
+    video.load();
+    document.title = `${aktuell.titel} – Video-Link`;
+    if (fernVerbunden()) aufFernseherLaden(0);   // Fernseher läuft schon: dort weitermachen
+    else video.play().catch(() => { /* ohne Fingertipp startet es nicht von selbst */ });
+    $('spieler').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  video.addEventListener('error', () => {
+    if (!aktuell || !video.src) return;
+    hinweis('videoHinweis', aktuell.art === 'hls'
+      ? 'Dieser Browser spielt das Format (HLS) nicht selbst ab. Das Streamen auf den Fernseher geht trotzdem.'
+      : 'Das Video lässt sich hier nicht abspielen. Vielleicht ist der Link abgelaufen – dann bitte neu öffnen.');
+  });
+
+  // ---------- Fernseher (Chromecast) ----------
+  // Bevorzugt das Cast-SDK: Der Chromecast lädt das Video dann selbst von
+  // diesem Server, das Handy dient nur als Fernbedienung und darf schlafen.
+  let castDa = false;
+  let fernSpieler = null;
+  let fernSteuerung = null;
+  const castKontext = () => window.cast.framework.CastContext.getInstance();
+  const fernVerbunden = () => castDa && !!castKontext().getCurrentSession();
+
+  window.__onGCastApiAvailable = (bereit) => {
+    if (!bereit || !window.cast || !window.chrome || !window.chrome.cast) return;
+    const cf = window.cast.framework;
+    castKontext().setOptions({
+      receiverApplicationId: window.chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+      autoJoinPolicy: window.chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED,
+    });
+    fernSpieler = new cf.RemotePlayer();
+    fernSteuerung = new cf.RemotePlayerController(fernSpieler);
+    fernSteuerung.addEventListener(cf.RemotePlayerEventType.ANY_CHANGE, fernZeigen);
+    castDa = true;
+    fernZeigen();
+  };
+
+  let zieht = false;   // Finger liegt auf der Positionsleiste
+  function fernZeigen() {
+    const an = castDa && fernSpieler.isConnected;
+    $('fern').hidden = !an;
+    $('aufTv').querySelector('span').textContent = an ? 'Dieses Video auf den Fernseher' : 'Auf Fernseher streamen';
+    if (!an) return;
+    const geraet = castKontext().getCurrentSession()?.getCastDevice()?.friendlyName || 'Fernseher';
+    const laeuft = fernSpieler.isMediaLoaded;
+    $('fernKopf').textContent = laeuft
+      ? `Läuft auf ${geraet}: ${fernSpieler.title || (aktuell && aktuell.titel) || 'Video'}`
+      : `Verbunden mit ${geraet}`;
+    $('fernPause').textContent = fernSpieler.isPaused ? 'Weiter' : 'Pause';
+    for (const id of ['fernPause', 'fernZurueck', 'fernVor', 'fernLeiste']) $(id).disabled = !laeuft;
+    $('fernDauer').textContent = zeit(fernSpieler.duration);
+    $('fernLeiste').max = Math.floor(fernSpieler.duration || 0);
+    if (!zieht) {
+      $('fernLeiste').value = Math.floor(fernSpieler.currentTime || 0);
+      $('fernJetzt').textContent = zeit(fernSpieler.currentTime);
+    }
+  }
+  function fernSpringen(sekunden) {
+    fernSpieler.currentTime = Math.max(0, Math.min(sekunden, (fernSpieler.duration || sekunden + 1) - 1));
+    fernSteuerung.seek();
+  }
+  $('fernPause').addEventListener('click', () => fernSteuerung.playOrPause());
+  $('fernZurueck').addEventListener('click', () => fernSpringen(fernSpieler.currentTime - 30));
+  $('fernVor').addEventListener('click', () => fernSpringen(fernSpieler.currentTime + 30));
+  $('fernLeiste').addEventListener('input', () => { zieht = true; $('fernJetzt').textContent = zeit($('fernLeiste').value); });
+  $('fernLeiste').addEventListener('change', () => { zieht = false; fernSpringen(Number($('fernLeiste').value)); });
+  $('fernEnde').addEventListener('click', () => castKontext().endCurrentSession(true));
+
+  async function aufFernseherLaden(abSekunde) {
+    const cm = window.chrome.cast.media;
+    const info = new cm.MediaInfo(aktuell.adresse, aktuell.art === 'hls' ? 'application/x-mpegURL' : 'video/mp4');
+    info.streamType = cm.StreamType.BUFFERED;
+    info.metadata = new cm.GenericMediaMetadata();
+    info.metadata.title = aktuell.titel;
+    const anfrage = new cm.LoadRequest(info);
+    anfrage.autoplay = true;
+    anfrage.currentTime = abSekunde || 0;
+    try {
+      const fehler = await castKontext().getCurrentSession().loadMedia(anfrage);
+      if (fehler) throw new Error(fehler);
+      video.pause();
+      hinweis('tvHinweis', '');
+    } catch {
+      hinweis('tvHinweis', 'Der Fernseher konnte das Video nicht laden. Bitte den Link neu öffnen und noch einmal versuchen.');
+    }
+  }
+
+  $('aufTv').addEventListener('click', async () => {
+    if (!aktuell) return;
+    hinweis('tvHinweis', '');
+    if (castDa) {
+      try {
+        if (!castKontext().getCurrentSession()) await castKontext().requestSession();
+      } catch {
+        return;   // Auswahl abgebrochen oder kein Gerät gewählt
+      }
+      return aufFernseherLaden(video.currentTime);
+    }
+    // Ohne Cast-SDK (z. B. Safari): die Fernwiedergabe des Browsers versuchen.
+    if (video.remote && typeof video.remote.prompt === 'function') {
+      try { await video.remote.prompt(); return; } catch (fehler) {
+        if (fehler && fehler.name === 'NotAllowedError') return;   // abgebrochen
+      }
+    }
+    hinweis('tvHinweis', 'Dieser Browser kann nicht direkt auf den Fernseher streamen. In Chrome (Handy oder Rechner) im selben WLAN wie der Chromecast klappt es.');
+  });
+
+  // ---------- Bedienung ----------
+  $('linkForm').addEventListener('submit', (e) => { e.preventDefault(); oeffnen($('linkFeld').value); });
+  $('einfuegen').addEventListener('click', async () => {
+    try {
+      const text = (await navigator.clipboard.readText()).trim();
+      const link = (text.match(/https?:\/\/\S+/i) || [''])[0];
+      if (!link) return melden('In der Zwischenablage ist kein Link.', 'hinweis');
+      $('linkFeld').value = link;
+      oeffnen(link);
+    } catch {
+      melden('Kein Zugriff auf die Zwischenablage – den Link bitte von Hand einfügen.', 'hinweis');
+      $('linkFeld').focus();
+    }
+  });
+  $('zugangForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const t = $('tokenFeld').value.trim();
+    if (!t) return;
+    tokenSetzen(t);
+    starten();
+  });
+  $('tokenAendern').addEventListener('click', () => zugangZeigen());
+
+  // ---------- Start ----------
+  function starten() {
+    $('zugang').hidden = true;
+    $('eingabe').hidden = false;
+    $('tokenAendern').hidden = false;
+    zuletztZeigen();
+    // Übergabe: video?url=<Link> öffnet das Video sofort.
+    const link = new URLSearchParams(location.search).get('url') || uebergabe.get('url');
+    if (link) { $('linkFeld').value = link; oeffnen(link); }
+    else $('linkFeld').focus();
+  }
+
+  // Token und Link lassen sich auch per Fragment übergeben (#token=…&url=…).
+  const uebergabe = new URLSearchParams(location.hash.slice(1));
+  if (uebergabe.get('token')) tokenSetzen(uebergabe.get('token'));
+  if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+
+  if (!tokenLesen()) zugangZeigen();
+  else starten();
+})();
+</script>
+<script async src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+</body>
+</html>
