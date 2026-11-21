@@ -15,6 +15,12 @@ const SUCHZEIT_MS = Number(process.env.VIDEO_SUCHZEIT_MS || 25000);
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function suchen(link) {
+  // Filemoon liefert im Katalog die Download-Seite; der Player liegt unter /e/.
+  const adresse = new URL(link);
+  if (/^(www\.)?filemoon\.to$/i.test(adresse.hostname) && /^\/d\/[a-z0-9]+\/?$/i.test(adresse.pathname)) {
+    adresse.pathname = adresse.pathname.replace(/^\/d\//, '/e/');
+    link = adresse.href;
+  }
   const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', '--mute-audio'] });
   try {
     const context = await browser.newContext({
