@@ -1144,8 +1144,9 @@
           },
             el('div', { class: 'folge-nr' }, f.nummer),
             el('div', { class: 'folge-titel' },
-              el('div', { class: 'folge-titel-text' }, f.titel || '–'))),
-          hosterRendern(f.hoster, node)));
+              el('div', { class: 'folge-titel-text' }, f.titel || '–')))));
+      // Erst anhängen, wenn es node gibt: die Anbieter-Knöpfe brauchen ihn.
+      node.querySelector('.folge-zeile').append(hosterRendern(f.hoster, node));
       if (istMarkiert) markierteZeile = node;
       return node;
     }));
