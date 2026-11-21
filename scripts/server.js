@@ -597,6 +597,18 @@ const server = http.createServer(async (req, res) => {
   const schreibend = req.method === 'POST' && url.pathname === '/gesehen';
   if (req.method !== 'GET' && !schreibend) return antworten(res, 405, { ok: false, fehler: 'Nur GET ist erlaubt (POST nur auf /gesehen)' });
   if (url.pathname === '/health') return antworten(res, 200, { ok: true });
+  if (url.pathname === '/anbieter.user.js') {
+    return fs.readFile(path.join(__dirname, '..', 'public', 'anbieter.user.js'), (fehler, inhalt) => {
+      if (fehler) return antworten(res, 500, { ok: false, fehler: 'Browser-Brücke fehlt' });
+      res.writeHead(200, {
+        'Content-Type': 'application/javascript; charset=utf-8',
+        'Content-Length': inhalt.length,
+        'Cache-Control': 'no-cache',
+        'X-Content-Type-Options': 'nosniff',
+      });
+      res.end(inhalt);
+    });
+  }
   const seite = { '/': OBERFLAECHE, '/index.html': OBERFLAECHE, '/video': VIDEO_SEITE, '/video.html': VIDEO_SEITE }[url.pathname];
   if (seite) {
     return fs.readFile(seite, (fehler, inhalt) => {

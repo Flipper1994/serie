@@ -6,23 +6,23 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="color-scheme" content="light dark">
 <title>Serien-Katalog</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='6' width='26' height='18' rx='3' fill='%23c2410c'/%3E%3Cpath d='M13 11v8l7-4z' fill='%23fff'/%3E%3Crect x='10' y='26' width='12' height='2' rx='1' fill='%23c2410c'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='6' width='26' height='18' rx='3' fill='%23087b69'/%3E%3Cpath d='M13 11v8l7-4z' fill='%23fff'/%3E%3Crect x='10' y='26' width='12' height='2' rx='1' fill='%23087b69'/%3E%3C/svg%3E">
 <style>
   /* ---------- Design-Tokens ---------- */
   :root {
-    --bg: #f6f4f1;
+    --bg: #f7f8fa;
     --flaeche: #ffffff;
-    --flaeche-2: #f0ede8;
-    --flaeche-3: #ebe6df;
-    --text: #1c1a17;
-    --text-2: #5f5a52;
-    --text-3: #8a8478;
-    --linie: #e3ded6;
-    --linie-2: #d4cdc2;
-    --akzent: #c2410c;
-    --akzent-2: #ea580c;
+    --flaeche-2: #f5f7f8;
+    --flaeche-3: #e9edf0;
+    --text: #16232b;
+    --text-2: #536571;
+    --text-3: #687986;
+    --linie: #e5eaed;
+    --linie-2: #c8d3da;
+    --akzent: #087b69;
+    --akzent-2: #096b5c;
     --akzent-text: #ffffff;
-    --akzent-weich: #fdeee5;
+    --akzent-weich: #e6f4ef;
     --fehler: #b42318;
     --fehler-weich: #fdecea;
     --ok-weich: #e8f3ec;
@@ -30,28 +30,28 @@
     --warn: #b45309;
     --warn-weich: #fdf3e3;
     --schatten-1: 0 1px 2px rgba(28, 26, 23, .05);
-    --schatten-2: 0 4px 16px rgba(28, 26, 23, .06), 0 1px 3px rgba(28, 26, 23, .04);
+    --schatten-2: none;
     --schatten-3: 0 12px 32px rgba(28, 26, 23, .08), 0 4px 12px rgba(28, 26, 23, .05);
-    --radius: 16px;
-    --radius-klein: 10px;
+    --radius: 20px;
+    --radius-klein: 12px;
     --radius-rund: 999px;
     --übergang: 160ms cubic-bezier(.4, 0, .2, 1);
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0f0e0c;
-      --flaeche: #1c1b18;
-      --flaeche-2: #26241f;
-      --flaeche-3: #312e28;
-      --text: #f2efe9;
-      --text-2: #a9a299;
-      --text-3: #78726a;
-      --linie: #34312b;
-      --linie-2: #423e36;
-      --akzent: #f97316;
-      --akzent-2: #fb923c;
-      --akzent-text: #1a0d03;
-      --akzent-weich: #3a2112;
+      --bg: #101719;
+      --flaeche: #182125;
+      --flaeche-2: #1d292e;
+      --flaeche-3: #2b393f;
+      --text: #edf3f5;
+      --text-2: #b0bfc7;
+      --text-3: #94a6b0;
+      --linie: #2c3b42;
+      --linie-2: #465b65;
+      --akzent: #70ddbe;
+      --akzent-2: #70ddbe;
+      --akzent-text: #102e25;
+      --akzent-weich: #1b3a33;
       --fehler: #f97066;
       --fehler-weich: #3b1a17;
       --ok-weich: #16291e;
@@ -59,7 +59,7 @@
       --warn: #fbbf24;
       --warn-weich: #2d2410;
       --schatten-1: 0 1px 2px rgba(0, 0, 0, .3);
-      --schatten-2: 0 4px 16px rgba(0, 0, 0, .35);
+      --schatten-2: none;
       --schatten-3: 0 12px 32px rgba(0, 0, 0, .5);
     }
   }
@@ -78,27 +78,24 @@
   }
   ::selection { background: var(--akzent); color: var(--akzent-text); }
 
-  .rahmen { max-width: 820px; margin: 0 auto; padding: 24px 16px 56px; }
+  .rahmen { max-width: 960px; margin: 0 auto; padding: max(32px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(36px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); }
 
   /* ---------- Kopfzeile ---------- */
   header {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     gap: 12px;
-    margin-bottom: 20px;
+    margin-bottom: 36px;
   }
   h1 {
-    font-size: 1.4rem;
+    font-size: 2rem;
     margin: 0;
-    letter-spacing: -.015em;
+    letter-spacing: -.06em;
     font-weight: 700;
   }
   h1 span {
-    background: linear-gradient(135deg, var(--akzent), var(--akzent-2));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: var(--akzent);
   }
   .leise { color: var(--text-2); font-size: .875rem; }
   .leise-klein { color: var(--text-3); font-size: .8rem; }
@@ -109,7 +106,7 @@
   .knopf {
     border: 0;
     border-radius: var(--radius-klein);
-    background: linear-gradient(135deg, var(--akzent), var(--akzent-2));
+    background: var(--akzent);
     color: var(--akzent-text);
     font-weight: 650;
     padding: 12px 20px;
@@ -117,13 +114,13 @@
     min-height: 46px;
     width: 100%;
     transition: transform var(--übergang), box-shadow var(--übergang), opacity var(--übergang);
-    box-shadow: 0 1px 2px rgba(194, 65, 12, .25);
+    box-shadow: none;
   }
-  .knopf:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(194, 65, 12, .3); }
+  .knopf:hover:not(:disabled) { opacity: .9; }
   .knopf:active:not(:disabled) { transform: translateY(0); }
   .knopf:disabled { opacity: .55; cursor: progress; }
   .knopf-text {
-    background: none; border: 0; padding: 4px 0;
+    background: none; border: 0; padding: 12px 0; min-height: 44px;
     color: var(--text-2); cursor: pointer;
     font-size: .875rem; text-decoration: underline; text-underline-offset: 3px;
     transition: color var(--übergang);
@@ -136,7 +133,7 @@
     border: 1px solid var(--linie);
     border-radius: var(--radius);
     box-shadow: var(--schatten-2);
-    padding: 20px;
+    padding: 28px;
     transition: box-shadow var(--übergang);
   }
   .karte + .karte, #ausgabe > .karte { margin-top: 16px; }
@@ -182,12 +179,12 @@
   }
   .chip:hover { border-color: var(--akzent); transform: translateY(-1px); }
   .chip.aktiv {
-    background: linear-gradient(135deg, var(--akzent), var(--akzent-2));
+    background: var(--akzent);
     border-color: transparent;
     color: var(--akzent-text);
     font-weight: 600;
     cursor: default;
-    box-shadow: 0 2px 8px rgba(194, 65, 12, .3);
+    box-shadow: none;
   }
   .chip.aktiv:hover { transform: none; }
   .chip.still { cursor: default; }
@@ -247,11 +244,11 @@
   }
 
   /* ---------- Folgenliste ---------- */
-  .folgen { display: flex; flex-direction: column; gap: 8px; }
+  .folgen { display: flex; flex-direction: column; gap: 10px; }
   .folge {
     border: 1px solid var(--linie);
     border-radius: var(--radius-klein);
-    background: var(--flaeche-2);
+    background: var(--flaeche);
     overflow: hidden;
     transition: border-color var(--übergang), box-shadow var(--übergang);
   }
@@ -354,13 +351,13 @@
 
   /* ---------- Meine Serien ---------- */
   .titel.klein { font-size: 1.2rem; margin-bottom: 14px; }
-  .serien-liste { display: flex; flex-direction: column; gap: 8px; }
+  .serien-liste { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .serien-zeile {
     display: flex;
     flex-direction: column;
     gap: 2px;
     text-align: left;
-    padding: 12px 14px;
+    padding: 20px;
     border: 1px solid var(--linie);
     border-radius: var(--radius-klein);
     background: var(--flaeche-2);
@@ -386,7 +383,9 @@
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    padding: 5px 11px;
+    padding: 11px 15px;
+    min-height: 44px;
+    justify-content: center;
     border-radius: var(--radius-rund);
     border: 1px solid var(--linie);
     background: var(--flaeche);
@@ -399,11 +398,11 @@
     line-height: 1.3;
   }
   .stream-button:hover:not(:disabled) {
-    background: linear-gradient(135deg, var(--akzent), var(--akzent-2));
+    background: var(--akzent);
     border-color: transparent;
     color: var(--akzent-text);
     transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(194, 65, 12, .3);
+    box-shadow: none;
   }
   .stream-button:disabled { opacity: .55; cursor: progress; }
   .stream-button.laadt::before {
@@ -419,55 +418,6 @@
     .folge-zeile { flex-wrap: wrap; }
     .stream-buttons { width: 100%; justify-content: flex-start; margin-top: 4px; padding-left: 46px; }
   }
-
-  .player-box.link-box { background: var(--flaeche-2); padding: 12px 14px; font-size: .875rem; }
-  .link-box p { margin: 0 0 10px; color: var(--text-2); }
-  .link-box a { color: var(--akzent); font-weight: 600; }
-  .link-form { display: flex; gap: 8px; flex-wrap: wrap; }
-  .link-feld {
-    flex: 1 1 200px; min-width: 0; padding: 8px 12px;
-    border: 1px solid var(--linie-2); border-radius: var(--radius-klein); background: var(--flaeche);
-  }
-  /* Player erscheint unter der Folge */
-  .player-box {
-    margin: 0 8px 8px;
-    border-radius: var(--radius-klein);
-    overflow: hidden;
-    background: #000;
-    border: 1px solid var(--linie);
-  }
-  .player-box video {
-    display: block;
-    width: 100%;
-    max-height: 70vh;
-    background: #000;
-  }
-  .player-fehler {
-    padding: 12px 14px;
-    background: var(--fehler-weich);
-    color: var(--fehler);
-    font-size: .85rem;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .player-hinweis {
-    padding: 8px 12px;
-    background: var(--flaeche-2);
-    color: var(--text-2);
-    font-size: .78rem;
-    border-bottom: 1px solid var(--linie);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .player-schliessen {
-    background: none; border: 0; padding: 2px 8px;
-    color: var(--text-2); cursor: pointer;
-    font-size: 1.1rem; line-height: 1;
-    border-radius: 6px;
-  }
-  .player-schliessen:hover { color: var(--text); background: var(--flaeche-3); }
 
   /* ---------- Details / Sprache / Info ---------- */
   details { margin-top: 20px; border-top: 1px solid var(--linie); padding-top: 14px; }
@@ -526,6 +476,41 @@
   .fuss-knoepfe { display: flex; gap: 16px; flex-wrap: wrap; }
 
   /* ---------- Animationen ---------- */
+  a { color: var(--akzent); text-underline-offset: 3px; }
+  :focus-visible { outline: 3px solid var(--akzent); outline-offset: 4px; }
+  button, a, summary, input { touch-action: manipulation; }
+  .marken-zeile { margin: 4px 0 0; font-size: .85rem; color: var(--text-2); }
+  .kopf-navigation { display: flex; align-items: center; gap: 20px; flex-shrink: 0; }
+  .kopf-navigation > * { white-space: nowrap; }
+  .kopf-navigation a { font-size: .875rem; font-weight: 600; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; }
+  .suche .serie-feld { min-width: 0; }
+  .folge-zeile { padding: 8px; gap: 8px; }
+  .folge-kopf { min-height: 48px; border: 0; background: none; text-align: left; font: inherit; }
+  .haken-feld { min-width: 44px; min-height: 44px; justify-content: center; padding: 0; }
+  .chip { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; max-width: 100%; white-space: normal; }
+  .folge-titel-text, dd, details p, .titel { overflow-wrap: anywhere; }
+  #anbieterHilfe { margin-top: 16px; padding: 16px 20px; font-size: .85rem; }
+  #anbieterHilfe summary { min-height: 32px; display: block; font-weight: 500; }
+  #anbieterHilfe summary::before { margin-right: 8px; }
+  #brueckenStatus { color: var(--akzent); white-space: nowrap; }
+  @media (max-width: 680px) {
+    .rahmen { padding-top: max(20px, env(safe-area-inset-top)); padding-inline: max(16px, env(safe-area-inset-left)) max(16px, env(safe-area-inset-right)); }
+    header { margin-bottom: 24px; gap: 8px; }
+    .kopf-navigation { gap: 14px; }
+    .marken-zeile { max-width: 155px; }
+    .karte { padding: 20px 16px; }
+    .serien-liste { grid-template-columns: 1fr; }
+    .folge-kopf { gap: 8px; padding-right: 0; }
+    .stream-buttons { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 0; margin: 0; gap: 8px; }
+    .stream-button { padding-inline: 8px; white-space: normal; overflow-wrap: anywhere; }
+    .titel { font-size: 1.5rem; }
+    footer { gap: 8px; }
+    .fuss-knoepfe { gap: 12px; }
+  }
+  @media (max-width: 360px) {
+    .kopf-navigation { flex-direction: column; gap: 0; align-items: flex-end; }
+    .marken-zeile { max-width: 130px; }
+  }
   @keyframes erscheinen {
     from { opacity: 0; transform: translateY(6px); }
     to { opacity: 1; transform: translateY(0); }
@@ -546,8 +531,11 @@
 <body>
 <div class="rahmen">
   <header>
-    <h1>Serien-<span>Katalog</span></h1>
-    <button id="zurStartseite" class="knopf-text" type="button" hidden>Meine Serien</button>
+    <div><h1>serie<span>.</span></h1><p class="marken-zeile">Deine Serien. Dein Fortschritt.</p></div>
+    <nav class="kopf-navigation" aria-label="Hauptnavigation">
+      <button id="zurStartseite" class="knopf-text" type="button" hidden>Meine Serien</button>
+      <a href="video">Video öffnen ↗</a>
+    </nav>
   </header>
 
   <!-- Zugangskarte: nur ohne Token sichtbar -->
@@ -574,6 +562,17 @@
   <!-- Ausgabebereich: dynamisch gefüllt -->
   <div id="ausgabe"></div>
 
+  <details class="karte" id="anbieterHilfe">
+    <summary>Anbieter automatisch im Videoplayer öffnen · <span id="brueckenStatus">Einrichtung nötig</span></summary>
+    <p>Einmalig <a href="https://www.tampermonkey.net/" target="_blank" rel="noopener noreferrer">Tampermonkey</a>
+      im Browser installieren, danach die <a href="anbieter.user.js">Browser-Brücke installieren</a>.
+      Auf der Anbieter-Seite auf den Player klicken und eine mögliche Sicherheitsabfrage lösen.
+      Anschließend öffnet sich automatisch unsere Videoseite mit Chromecast.</p>
+    <p>Ohne Browser-Brücke öffnet sich die Videoseite mit einer Anleitung.
+      Dort die Anbieter-Seite öffnen und den freigegebenen Hoster-Link einfügen.
+      Auf Smartphones braucht es einen Browser mit Userscript-Unterstützung; Chrome für Android unterstützt diese Erweiterung nicht.</p>
+  </details>
+
   <footer>
     <span class="leise">Staffel 0 = Specials</span>
     <span class="fuss-knoepfe">
@@ -589,6 +588,12 @@
   'use strict';
   const TOKEN_SCHLUESSEL = 'serienKatalog.token';
   const $ = (id) => document.getElementById(id);
+  function brueckenStatusZeigen() {
+    $('brueckenStatus').textContent = document.documentElement.dataset.anbieterBruecke === '1'
+      ? 'bereit' : 'Einrichtung nötig';
+  }
+  document.addEventListener('anbieter-bruecke-bereit', brueckenStatusZeigen);
+  brueckenStatusZeigen();
 
   // ---------- LocalStorage-Helfer ----------
   const speicher = {
@@ -943,7 +948,7 @@
       .map((h) => ({ name: String(h.title || h.name || 'Anbieter'), url: h.href ? String(h.href) : null }));
   }
 
-  function hosterRendern(hoster, folgeNode) {
+  function hosterRendern(hoster) {
     const liste = hosterListe(hoster);
     if (!liste.length) {
       return el('span', { class: 'leise-klein', style: 'white-space:nowrap' }, 'keine Anbieter');
@@ -957,37 +962,17 @@
         container.append(el('span', { class: 'stream-button', style: 'opacity:.5;cursor:default' }, h.name));
         continue;
       }
-      // Ein Klick öffnet die Anbieter-Seite in einem neuen Tab.
-      const btn = el('a', { class: 'stream-button', href: h.url, target: '_blank', rel: 'noopener noreferrer' }, h.name);
-
-      // TODO (später): Videolink direkt übernehmen. Der Anbieter-Link liegt hinter
-      // einer Captcha-Abfrage; bis dahin bleibt die Box mit dem Einfügefeld, die
-      // den kopierten Link an die Videoseite übergibt, auskommentiert.
-      // const btn = el('button', { type: 'button', class: 'stream-button', 'data-url': h.url }, h.name);
-      // // Der Anbieter-Link liegt hinter einer Captcha-Abfrage und lässt sich
-      // // nicht automatisch auflösen: Seite öffnen, Videolink kopieren, einfügen.
-      // btn.addEventListener('click', () => {
-      //   const bestehend = folgeNode.querySelector(':scope > .player-box');
-      //   if (bestehend) {
-      //     bestehend.remove();
-      //     if (bestehend.dataset.url === h.url) return;   // zweiter Klick schließt
-      //   }
-      //   const feld = el('input', { type: 'url', class: 'link-feld', placeholder: `${h.name}-Link einfügen (https://…)`, 'aria-label': 'Videolink' });
-      //   const los = el('button', { type: 'submit', class: 'stream-button' }, 'Abspielen');
-      //   const formular = el('form', { class: 'link-form' }, feld, los);
-      //   formular.addEventListener('submit', (ereignis) => {
-      //     ereignis.preventDefault();
-      //     const link = feld.value.trim();
-      //     if (!/^https?:\/\//i.test(link)) return feld.focus();
-      //     location.href = `video?${new URLSearchParams({ url: link })}`;
-      //   });
-      //   const box = el('div', { class: 'player-box link-box', 'data-url': h.url },
-      //     el('p', {}, 'Der Link zum Video liegt hinter einer Sicherheitsabfrage des Anbieters. ',
-      //       el('a', { href: h.url, target: '_blank', rel: 'noopener noreferrer' }, `1. ${h.name}-Seite öffnen`),
-      //       ', dort das Video starten, 2. dessen Adresse kopieren und 3. hier einfügen:'),
-      //     formular);
-      //   folgeNode.append(box);
-      // });
+      const adresse = new URL(h.url, location.href);
+      if (/^(www\.)?burningseries\.ac$/.test(adresse.hostname) && adresse.protocol === 'https:') {
+        adresse.hash = new URLSearchParams({ serienKatalog: '1' }).toString();
+      }
+      const abspielen = new URL('video', location.href);
+      abspielen.searchParams.set('anbieter', adresse.href);
+      const btn = el('a', { class: 'stream-button', href: abspielen.href, target: '_blank', rel: 'noopener noreferrer' }, h.name);
+      // Beim Klick erneut prüfen: die Erweiterung kann nach der Seite bereit sein.
+      btn.addEventListener('click', () => {
+        btn.href = document.documentElement.dataset.anbieterBruecke === '1' ? adresse.href : abspielen.href;
+      });
       container.append(btn);
     }
     return container;
@@ -1115,15 +1100,18 @@
               'aria-label': `Folge ${f.nummer} gesehen`,
               onchange: (e) => gesehenSetzen([f.nummer], e.target.checked),
             })),
-          el('div', {
+          el('button', {
             class: 'folge-kopf',
+            type: 'button',
+            'aria-label': `Folge ${f.nummer}: ${f.titel || 'Ohne Titel'}`,
+            'aria-pressed': String(istMarkiert),
             onclick: () => folgeWaehlen(f.nummer),
           },
             el('div', { class: 'folge-nr' }, f.nummer),
             el('div', { class: 'folge-titel' },
               el('div', { class: 'folge-titel-text' }, f.titel || '–')))));
       // Erst anhängen, wenn es node gibt: die Anbieter-Knöpfe brauchen ihn.
-      node.querySelector('.folge-zeile').append(hosterRendern(f.hoster, node));
+      node.querySelector('.folge-zeile').append(hosterRendern(f.hoster));
       if (istMarkiert) markierteZeile = node;
       return node;
     }));

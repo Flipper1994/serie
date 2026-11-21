@@ -72,10 +72,53 @@ Neue Umgebungsvariablen: `YT_DLP_PATH` (Pfad zum Binary, sonst `yt-dlp`),
 `deploy/install.sh` installiert `yt-dlp` automatisch via `pip3`, falls
 vorhanden. Update später mit `yt-dlp -U`.
 
-In der Oberfläche hat jede Folge drei kleine Buttons (VOE, Vidmoly,
-Filemoon). Ein Klick ruft `/stream` auf und blendet darunter einen
-`<video>`-Player ein. Chrome zeigt automatisch den Cast-Button, wenn
-ein Chromecast im Netz ist.
+In der Oberfläche hat jede Folge Anbieter-Knöpfe (VOE, Vidmoly, Filemoon).
+Der Weg zur Videoseite ist unten beschrieben.
+
+### Vom Anbieter zur Videoseite
+
+Ohne Erweiterung öffnet ein Anbieter-Klick die Videoseite in einem neuen Tab.
+Dort die Anbieter-Seite öffnen, den Player regulär freigeben (gegebenenfalls
+Captcha lösen) und den freigegebenen Hoster-Link ins Linkfeld einfügen. Dieser
+Weg braucht keine Erweiterung und steht auch auf Android und iPhone bereit.
+
+Für die automatische Übergabe einmalig Tampermonkey und anschließend
+`https://flippercapital.duckdns.org/serie/anbieter.user.js` installieren.
+Die Einrichtung und ihr Status stehen unter der Folgenliste. Danach öffnet ein
+Anbieter-Klick die markierte BurningSeries-Seite; nach dem normalen Player-Klick
+und einer gegebenenfalls nötigen Captcha-Freigabe übernimmt das Userscript den
+sichtbaren Link oder die iframe-Adresse und wechselt im selben Tab zu
+`/serie/video?url=…`. Es löst keine Captchas und umgeht keine Browserprüfung.
+Das API-Token bleibt im Browser auf der Katalog-Domain.
+
+Die Brücke ist auf die produktive Adresse und burningseries.ac beschränkt.
+Andere Installationen müssen die `@match`-Angaben und das Ziel im Userscript
+anpassen. Chrome für Android bietet keine Unterstützung für diese Erweiterung;
+auf mobilen Geräten ist der manuelle Weg daher der Standard. Apple-Browser
+unterstützen Chromecast nicht in gleicher Weise wie Desktop-Chrome;
+Fernwiedergabe und Videoformate hängen vom Browser und Empfangsgerät ab.
+
+Beide Seiten bieten ein responsives Layout, Hell-/Dunkelmodus, Safe-Area-Abstände,
+Tastaturbedienung und Touch-Flächen von mindestens 44 px für die Anbieter-Knöpfe.
+
+Gezielte Prüfung ohne echte Captcha-Freigabe:
+
+    node scripts/test-anbieter.js
+    TEST_BROWSER=webkit node scripts/test-anbieter.js
+
+Benötigt Playwright und den jeweiligen Browser. Die Tests bilden die reguläre
+Anbieter-Freigabe nach und prüfen in Chromium Link/iframe-Übergabe und Popup-Verhalten.
+Chromium und WebKit prüfen den Weg ohne Erweiterung und die mobile Bedienung bei
+320–1440 px in Hell/Dunkel. Die Tests ersetzen keine echte
+Captcha-Abnahme oder einen Test mit einem physischen Chromecast.
+
+Echte Auflösung eines öffentlichen Testvideos und Range-Abruf über den Proxy:
+
+    API_TOKEN=… TEST_BASIS=https://flippercapital.duckdns.org/serie/ node scripts/test-medien.js
+
+Der Test gibt weder Token noch signierte Medienadressen aus.
+Mit `TEST_BROWSER_VIDEO=1` prüft er zusätzlich, dass das Video im echten
+Chromium-Player der Videoseite geladen wird.
 
 ### Video-Link abspielen und auf den Fernseher streamen
 
