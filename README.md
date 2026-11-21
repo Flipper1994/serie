@@ -86,6 +86,18 @@ Minuten dauern; erfolgreiche Hoster-Links bleiben sechs Stunden in
 teilen sich die Aufgabe. `/stream` antwortet währenddessen mit 202; die
 Videoseite fragt den Stand erneut ab, ohne lange Proxy-Verbindungen.
 
+Die Videoseite zeigt den tatsächlichen Schritt, Gesamt- und Schrittzeit,
+Warteschlangenposition, Versuch und Bildrunde. Das Zeitlimit je Versuch wird
+als solches angezeigt; es gibt keine erfundene Restdauer oder Prozentanzeige.
+Ein Verlauf macht die abgeschlossenen Schritte nachvollziehbar. Auch das
+Laden der Videodaten, die Bereitschaft zum Abspielen und späteres Puffern
+haben eigene Statusmeldungen.
+
+Gespeicherte Freigaben werden direkt vor der Warteschlange gelesen und
+überspringen den Browser samt Bilderkennung. Nach einer neuen Freigabe wird
+der Platz für die nächste Sicherheitsprüfung sofort frei, während die
+vorherige Videoquelle bereits ermittelt wird.
+
 Einrichtung als Dienstbenutzer (Python 3, Git, curl und Xvfb vorausgesetzt):
 
     sudo -u serie bash deploy/install-anbieter.sh
@@ -113,6 +125,8 @@ Gezielte Prüfung ohne echte Captcha-Freigabe:
 
     node scripts/test-anbieter.js
     TEST_BROWSER=webkit node scripts/test-anbieter.js
+    node scripts/test-fortschritt.js
+    node scripts/test-suche.js
 
 Benötigt Playwright und den jeweiligen Browser. Prüft den neuen Tab, 202-Polling,
 automatische Player-Übergabe und mobile Bedienung bei 320–1440 px in Hell/Dunkel.
@@ -184,4 +198,7 @@ Servers. Dann den Dienst auf das Gateway des Docker-Netzes legen, z. B.
 
     node scripts/test.js
 
-16 Fälle gegen die echte Seite, etwa drei Minuten.
+17 Fälle gegen die echte Seite, etwa drei Minuten. Die Suche akzeptiert
+Teilnamen, alternative Titel und Eingaben wie „Greys anatomy“ ohne deutschen
+Zusatz oder Apostroph. Eindeutige Treffer werden geöffnet, mehrdeutige Treffer
+als anklickbare Auswahl angezeigt. Bei Tippfehlern gibt es passende Vorschläge.

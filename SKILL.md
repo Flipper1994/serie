@@ -21,6 +21,8 @@ Das Skript liegt in `scripts/katalog.js` in diesem Skill-Ordner:
 - Staffel `0` steht für „Specials“. Die Folge ist optional.
 - Groß-/Kleinschreibung ist egal. Bei Titeln der Form
   „Deutscher Titel | Originaltitel“ reicht einer der beiden Teile.
+- Teilnamen und Schreibweisen ohne Apostrophe oder Akzente werden erkannt,
+  z. B. „Greys anatomy“. Bei mehreren passenden Serien eine Auswahl anbieten.
 - Nennt der Nutzer keine Staffel, Staffel 1 abfragen: Die Antwort enthält auch
   die Liste aller Staffeln.
 
@@ -50,6 +52,6 @@ nur, wenn danach gefragt wurde. Der Nutzer liest oft am Handy.
 
 ## Wenn etwas nicht mehr geht
 
-`node <skill-ordner>/scripts/test.js` läuft mit 16 Fällen gegen die echte Seite
+`node <skill-ordner>/scripts/test.js` läuft mit 17 Fällen gegen die echte Seite
 (rund 3 Minuten). Schlägt etwas fehl, hat die Seite meist ihren Aufbau geändert;
 dann die Auswahlregeln in `katalog.js` anpassen.

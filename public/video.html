@@ -184,6 +184,23 @@
   .knopf-text, .zuletzt .weg { min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; }
   a.knopf { text-decoration: none; }
   #anbieterSchritt p { color: var(--text-2); }
+  .lade-kopf { display: flex; align-items: center; gap: 10px; }
+  .lade-kopf h2 { margin: 0; }
+  .lade-zeiten { display: flex; gap: 10px 24px; flex-wrap: wrap; margin: 16px 0; font-variant-numeric: tabular-nums; }
+  .lade-zeiten span { display: block; color: var(--text-2); font-size: .8rem; }
+  .lade-zeiten strong { font-size: 1.1rem; }
+  .lade-schritte { display: grid; gap: 8px; padding: 0; list-style: none; }
+  .lade-schritte li { display: flex; align-items: center; gap: 10px; color: var(--text-2); }
+  .lade-schritte li::before { content: '○'; width: 20px; text-align: center; }
+  .lade-schritte li[data-status="aktiv"] { color: var(--akzent); font-weight: 600; }
+  .lade-schritte li[data-status="aktiv"]::before { content: '◉'; }
+  .lade-schritte li[data-status="fertig"]::before { content: '✓'; }
+  #ladeStatus details { margin-top: 16px; font-size: .85rem; }
+  #ladeVerlauf { padding-left: 20px; overflow-wrap: anywhere; }
+  #ladeVerlauf li { margin: 8px 0; }
+  #ladeStatus.fertig .lade-schritte, #ladeStatus.fertig #ladeErwartung, #ladeStatus.fertig #ladeAktivitaet { display: none; }
+  #ladeStatus.fertig .lade-zeiten > div:last-child { display: none; }
+  #ladeDetail { overflow-wrap: anywhere; }
   @media (max-width: 680px) {
     .rahmen { padding-top: max(20px, env(safe-area-inset-top)); padding-inline: max(16px, env(safe-area-inset-left)) max(16px, env(safe-area-inset-right)); }
     header { margin-bottom: 24px; }
@@ -231,6 +248,26 @@
       </div>
     </form>
     <div id="meldung" class="meldung" hidden></div>
+  </section>
+
+  <section id="ladeStatus" class="karte" hidden aria-label="Ladestatus">
+    <div class="lade-kopf"><span id="ladeDreh" class="dreh" aria-hidden="true"></span><h2 id="ladeTitel">Verbindung zum Server</h2></div>
+    <p id="ladeDetail" role="status" aria-live="polite"></p>
+    <div class="lade-zeiten">
+      <div><span id="ladeGesamtLabel">Verstrichen</span><strong id="ladeGesamt">0:00</strong></div>
+      <div><span>In diesem Schritt</span><strong id="ladePhase">0:00</strong></div>
+    </div>
+    <p id="ladeErwartung" class="leise"></p>
+    <p id="ladeVersuch" class="leise" hidden></p>
+    <p id="ladeAktivitaet" class="leise"></p>
+    <ol class="lade-schritte" id="ladeSchritte">
+      <li data-schritt="cache">Gespeicherte Freigabe prüfen</li>
+      <li data-schritt="browser">Anbieter öffnen</li>
+      <li data-schritt="pruefung">Sicherheitsprüfung abschließen</li>
+      <li data-schritt="video">Videoquelle ermitteln</li>
+      <li data-schritt="medien">Videodaten laden</li>
+    </ol>
+    <details><summary>Genauen Verlauf anzeigen</summary><ol id="ladeVerlauf"></ol></details>
   </section>
 
   <!-- Player -->
@@ -368,34 +405,122 @@
   let aktuell = null;   // { link, titel, art, adresse (absolut, über den Server), direkt }
   let lauf = 0;
   let hls = null;
+  let prozess = null;
+  let prozessTimer = null;
+  let medienLauf = 0;
+  const phasen = {
+    verbindung: ['Verbindung zum Server', 'Die Anfrage wird gesendet. Das dauert normalerweise wenige Sekunden.', 'cache'],
+    cache: ['Gespeicherte Freigabe prüfen', 'Eine gespeicherte Freigabe überspringt die Sicherheitsprüfung.', 'cache'],
+    warteschlange: ['Warten auf die Freigabe', 'Die Wartezeit hängt von den laufenden Anfragen ab. Eine genaue Restdauer ist noch nicht bekannt.', 'browser'],
+    modell: ['Sicherheitsprüfung vorbereiten', 'Die Bilderkennung wird auf dem Server geladen.', 'browser'],
+    browser: ['Browser starten', 'Der Server bereitet die Verbindung zum Anbieter vor.', 'browser'],
+    anbieter: ['Anbieter öffnen', 'Die Anbieter-Seite wird geladen. Das dauert normalerweise wenige Sekunden.', 'browser'],
+    pruefung: ['Sicherheitsprüfung läuft', 'Google kann mehrere Bilderrunden verlangen. Die Restdauer ist nicht zuverlässig vorhersagbar.', 'pruefung'],
+    wiederholung: ['Freigabe wird erneut versucht', 'Der vorige Versuch war nicht erfolgreich. Maximal drei Versuche, jeweils bis zu drei Minuten.', 'pruefung'],
+    hoster: ['Videolink freigegeben', 'Die Sicherheitsprüfung ist abgeschlossen.', 'pruefung'],
+    video: ['Videoquelle ermitteln', 'Der Anbieter-Player wird geöffnet. Das dauert meist einige Sekunden, bei langsamen Quellen bis zu etwa einer Minute.', 'video'],
+    quelle: ['Videoquelle gefunden', 'Die Videoquelle ist bereit zum Laden.', 'video'],
+    medien: ['Videodaten laden', 'Wiedergabeliste und erste Videoabschnitte werden geladen. Bei langsamer Verbindung kann dieser Schritt länger dauern.', 'medien'],
+    puffern: ['Video puffert', 'Die Wiedergabe wartet auf weitere Videodaten.', 'medien'],
+    bereit: ['Video bereit', 'Das Video ist geladen. Falls es nicht automatisch startet, tippe auf Play.', 'medien'],
+    spielt: ['Video läuft', 'Die Wiedergabe hat begonnen.', 'medien'],
+    fehler: ['Laden unterbrochen', 'Du kannst erneut auf „Video öffnen“ tippen. Eine laufende Server-Freigabe wird dabei wieder übernommen.', null],
+  };
+
+  function prozessUhr() {
+    if (!prozess) return;
+    const jetzt = prozess.ende || Date.now() + prozess.offset;
+    $('ladeGesamt').textContent = zeit(((prozess.geladenAm || jetzt) - prozess.begonnen) / 1000);
+    $('ladeGesamtLabel').textContent = prozess.geladenAm ? 'Erste Vorbereitung' : 'Verstrichen';
+    $('ladePhase').textContent = zeit((jetzt - prozess.phaseSeit) / 1000);
+    const pruefung = ['pruefung', 'wiederholung'].includes(prozess.phase);
+    $('ladeVersuch').hidden = !pruefung || !prozess.versuch;
+    if (pruefung) {
+      const rest = Math.max(0, (prozess.versuchLimit || 180) - (jetzt - prozess.versuchSeit) / 1000);
+      $('ladeVersuch').textContent = `Versuch ${prozess.versuch || 1} von ${prozess.maxVersuche || 3}${prozess.runde ? ` · Bildrunde ${prozess.runde}` : ''}${prozess.versuchSeit ? ` · Zeitlimit dieses Versuchs: noch ${zeit(rest)}` : ''}`;
+    }
+    const seit = Math.max(0, Math.floor((jetzt - prozess.aktualisiert) / 1000));
+    $('ladeAktivitaet').textContent = prozess.ende ? '' : `Letzte Statusmeldung vor ${seit} Sekunden.${seit >= 30 ? ' Es liegt noch keine neue Rückmeldung vor.' : ''}`;
+  }
+
+  function prozessZeigen(daten) {
+    if (!prozess) return;
+    const wechsel = prozess.phase !== daten.phase;
+    if (daten.serverZeit) prozess.offset = daten.serverZeit - Date.now();
+    const jetzt = Date.now() + prozess.offset;
+    prozess = { ...prozess, ...daten, phaseSeit: daten.phaseSeit || (wechsel ? jetzt : prozess.phaseSeit), aktualisiert: daten.aktualisiert || jetzt };
+    if (!daten.verlauf && wechsel) prozess.verlauf.push({ phase: daten.phase, zeit: jetzt, detail: daten.detail || '' });
+    const [titel, erwartung, schritt] = phasen[prozess.phase] || phasen.verbindung;
+    $('ladeStatus').hidden = false;
+    $('ladeTitel').textContent = titel;
+    $('ladeDetail').textContent = prozess.phase === 'warteschlange'
+      ? (prozess.vorDir ? `${prozess.vorDir} Freigabe${prozess.vorDir === 1 ? '' : 'n'} vor dir. Deine Anfrage bleibt gespeichert; du musst nicht erneut klicken.` : 'Deine Freigabe beginnt gleich.')
+      : prozess.detail || erwartung;
+    $('ladeErwartung').textContent = erwartung;
+    const fertig = ['bereit', 'spielt', 'fehler'].includes(prozess.phase);
+    $('ladeStatus').classList.toggle('fertig', fertig);
+    $('ladeDreh').hidden = fertig;
+    if (['bereit', 'spielt'].includes(prozess.phase)) prozess.geladenAm = prozess.geladenAm || jetzt;
+    if (fertig) { prozess.ende = prozess.ende || jetzt; clearInterval(prozessTimer); }
+    const schritte = [...$('ladeSchritte').children];
+    const index = schritte.findIndex((e) => e.dataset.schritt === schritt);
+    schritte.forEach((e, i) => { e.dataset.status = i < index || ['bereit', 'spielt'].includes(prozess.phase) ? 'fertig' : i === index ? 'aktiv' : 'offen'; });
+    $('ladeVerlauf').replaceChildren(...prozess.verlauf.map((e) => el('li', {}, `${zeit((e.zeit - prozess.begonnen) / 1000)} · ${(phasen[e.phase] || [e.phase])[0]}${e.detail ? `: ${e.detail}` : ''}`)));
+    prozessUhr();
+  }
+
+  function prozessStarten() {
+    clearInterval(prozessTimer);
+    prozess = { begonnen: Date.now(), phaseSeit: Date.now(), aktualisiert: Date.now(), offset: 0, verlauf: [], phase: '' };
+    prozessZeigen({ phase: 'verbindung', detail: 'Die Anfrage wird zum Server gesendet.' });
+    prozessTimer = setInterval(prozessUhr, 1000);
+  }
+
+  function ladeFehler(text) { prozessZeigen({ phase: 'fehler', detail: text }); return melden(text); }
 
   async function oeffnen(link) {
     link = String(link || '').trim();
     if (!/^https?:\/\//i.test(link)) return melden('Das ist kein Link. Er muss mit https:// beginnen.');
     const dieser = ++lauf;
+    medienLauf = 0;
+    video.pause();
+    prozessStarten();
+    const istAnbieter = /^https:\/\/(www\.)?burningseries\.ac(\/|$)/i.test(link);
+    const antwortZeitlimit = istAnbieter ? 15000 : 80000;
+    if (!istAnbieter) prozessZeigen({ phase: 'video', detail: 'Der Server ermittelt die abspielbare Quelle zu diesem Link.' });
     const knopf = $('oeffnen');
     knopf.disabled = true;
     knopf.replaceChildren(el('span', { class: 'dreh' }), 'Wird geöffnet …');
     melden('');
     try {
       let antwort;
+      let daten;
+      let serverStatus = false;
       const ende = Date.now() + 12 * 60 * 1000;
       do {
-        antwort = await fetch(`stream?${new URLSearchParams({ url: link })}`, {
-          headers: { Authorization: `Bearer ${tokenLesen()}` },
-        });
+        const abbruch = new AbortController();
+        const timeout = setTimeout(() => abbruch.abort(), antwortZeitlimit);
+        try {
+          antwort = await fetch(`stream?${new URLSearchParams({ url: link })}`, {
+            headers: { Authorization: `Bearer ${tokenLesen()}` }, signal: abbruch.signal,
+          });
+          daten = await antwort.json().catch(() => null);
+        } finally { clearTimeout(timeout); }
         if (dieser !== lauf) return;
+        if (daten && daten.fortschritt && (antwort.status === 202 || serverStatus)) {
+          prozessZeigen(daten.fortschritt);
+          serverStatus = true;
+        }
         if (antwort.status !== 202) break;
-        if (Date.now() > ende) return melden('Die Anbieter-Freigabe dauert zu lange. Bitte später erneut versuchen.');
-        melden('Dein Video wird vorbereitet. Die erste Freigabe kann einige Minuten dauern …', 'hinweis');
-        await new Promise((r) => setTimeout(r, 2500));
+        if (Date.now() > ende) return ladeFehler('Die Freigabe dauert länger als zwölf Minuten. Du kannst die laufende Anfrage später erneut öffnen.');
+        await new Promise((r) => setTimeout(r, 1000));
       } while (dieser === lauf);
-      const daten = await antwort.json().catch(() => null);
       if (dieser !== lauf) return;
-      if (antwort.status === 401) return tokenAbgelehnt();
+      if (antwort.status === 401) { ladeFehler('Das Zugangs-Token wurde nicht angenommen.'); return tokenAbgelehnt(); }
       if (!antwort.ok || !daten || !daten.ok || !daten.medien) {
-        return melden(`Der Link ließ sich nicht öffnen: ${(daten && daten.fehler) || `Fehler ${antwort.status}`}`);
+        return ladeFehler(`Der Link ließ sich nicht öffnen: ${(daten && daten.fehler) || `Fehler ${antwort.status}`}`);
       }
+      if (!serverStatus) prozessZeigen({ phase: daten.cached ? 'cache' : 'quelle', detail: daten.cached ? 'Die gespeicherte Videoquelle ist bereits verfügbar.' : 'Die abspielbare Videoquelle wurde gefunden.' });
       aktuell = {
         link,
         titel: daten.titel || hostVon(link) || 'Video',
@@ -408,14 +533,19 @@
       abspielen();
       zuletztSchreiben([{ link, titel: aktuell.titel }, ...zuletztLesen().filter((e) => e.link !== link)]);
       history.replaceState(null, '', `${location.pathname}?${new URLSearchParams({ url: link })}`);
-    } catch {
-      if (dieser === lauf) melden('Der Server ist gerade nicht erreichbar.');
+    } catch (fehler) {
+      if (dieser === lauf) ladeFehler(fehler.name === 'AbortError'
+        ? `Keine Antwort vom Server innerhalb von ${antwortZeitlimit / 1000} Sekunden. Eine laufende Freigabe bleibt gespeichert; bitte erneut öffnen.`
+        : 'Die Verbindung zum Server wurde unterbrochen oder die Vorbereitung konnte nicht abgeschlossen werden. Bitte erneut öffnen.');
     } finally {
       if (dieser === lauf) { knopf.disabled = false; knopf.textContent = 'Video öffnen'; }
     }
   }
 
   function abspielen() {
+    const dieser = lauf;
+    medienLauf = lauf;
+    prozessZeigen({ phase: 'medien', detail: 'Die ersten Videodaten werden geladen.' });
     $('spieler').hidden = false;
     $('titel').textContent = aktuell.titel;
     $('direkt').href = aktuell.direkt;
@@ -426,9 +556,9 @@
       hls = new Hls();
       hls.loadSource(aktuell.adresse);
       hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+      hls.on(Hls.Events.MANIFEST_PARSED, () => { if (dieser === lauf) video.play().catch(() => {}); });
       hls.on(Hls.Events.ERROR, (_event, data) => {
-        if (data.fatal) hinweis('videoHinweis', 'Das Video konnte nicht geladen werden. Bitte erneut öffnen.');
+        if (data.fatal && dieser === lauf) { ladeFehler('Die Videoquelle wurde gefunden, aber die Videodaten konnten nicht geladen werden. Bitte erneut öffnen.'); hinweis('videoHinweis', 'Das Video konnte nicht geladen werden. Bitte erneut öffnen.'); }
       });
     } else {
       video.src = aktuell.adresse;
@@ -437,11 +567,29 @@
     document.title = `${aktuell.titel} – Video-Link`;
     if (fernVerbunden()) aufFernseherLaden(0);   // Fernseher läuft schon: dort weitermachen
     else video.play().catch(() => { /* ohne Fingertipp startet es nicht von selbst */ });
-    $('spieler').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    $('ladeStatus').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  video.addEventListener('loadedmetadata', () => {
+    if (medienLauf === lauf) prozessZeigen({ phase: 'medien', detail: `Die Videoquelle ist geladen${Number.isFinite(video.duration) ? ` (${zeit(video.duration)})` : ''}. Die ersten Bilder werden vorbereitet.` });
+  });
+  video.addEventListener('canplay', () => {
+    if (medienLauf === lauf && prozess && !['spielt', 'bereit'].includes(prozess.phase)) prozessZeigen({ phase: 'bereit', detail: 'Das Video ist geladen. Falls es nicht startet, tippe auf Play.' });
+  });
+  video.addEventListener('playing', () => {
+    if (medienLauf === lauf) prozessZeigen({ phase: 'spielt', detail: 'Das Video wird abgespielt.' });
+  });
+  video.addEventListener('waiting', () => {
+    if (medienLauf === lauf && prozess && ['spielt', 'bereit'].includes(prozess.phase)) {
+      prozess.ende = null;
+      prozessZeigen({ phase: 'puffern', detail: 'Der Player wartet auf weitere Videodaten.' });
+      clearInterval(prozessTimer); prozessTimer = setInterval(prozessUhr, 1000);
+    }
+  });
+
   video.addEventListener('error', () => {
-    if (!aktuell || !video.src) return;
+    if (!aktuell || !video.src || medienLauf !== lauf) return;
+    ladeFehler('Die Videoquelle wurde gefunden, aber der Player konnte das Video nicht laden.');
     hinweis('videoHinweis', aktuell.art === 'hls'
       ? 'Dieser Browser spielt das Format (HLS) nicht selbst ab. Das Streamen auf den Fernseher geht trotzdem.'
       : 'Das Video lässt sich hier nicht abspielen. Vielleicht ist der Link abgelaufen – dann bitte neu öffnen.');

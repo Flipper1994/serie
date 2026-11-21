@@ -291,20 +291,50 @@ function streamEingereiht(aufgabe) {
 // Liefert { status, inhalt } für eine Hoster-URL.
 const anbieterAufgaben = new Map();
 let anbieterSchlange = Promise.resolve();
+const anbieterWartende = [];
+let anbieterAktiv = null;
 function anbieterAdresse(link) {
   const u = new URL(link);
   return u.protocol === 'https:' && /^(www\.)?burningseries\.ac$/.test(u.hostname) && u.pathname.startsWith('/serie/');
 }
 
-function anbieterLauf(link) {
+function anbieterLauf(link, status) {
   return new Promise((fertig) => {
     const python = path.join(__dirname, '..', '.anbieter', 'venv', 'bin', 'python');
-    execFile('xvfb-run', ['-a', python, path.join(__dirname, 'anbieter-link.py'), link],
+    const prozess = execFile('xvfb-run', ['-a', python, path.join(__dirname, 'anbieter-link.py'), link],
       { timeout: 620000, maxBuffer: 2 * 1024 * 1024 }, (_fehler, stdout) => {
-        try { fertig(JSON.parse(stdout)); }
+        try { fertig(JSON.parse(stdout.trim().split('\n').at(-1))); }
         catch { fertig({ ok: false, fehler: 'Anbieter-Auflösung ist nicht verfügbar' }); }
       });
+    let puffer = '';
+    prozess.stdout.on('data', (teil) => {
+      puffer += teil;
+      const zeilen = puffer.split('\n'); puffer = zeilen.pop();
+      for (const zeile of zeilen) {
+        try { const d = JSON.parse(zeile); if (d.fortschritt) status(d.fortschritt); } catch { /* nur vollständige Statusmeldungen */ }
+      }
+    });
   });
+}
+
+function anbieterStatus(job, daten) {
+  const jetzt = Date.now();
+  const alt = job.fortschritt;
+  const wechsel = !alt || alt.phase !== daten.phase || (daten.versuch && daten.versuch !== alt.versuch);
+  job.fortschritt = {
+    ...alt, ...daten, begonnen: job.begonnen, phaseSeit: wechsel ? jetzt : alt.phaseSeit,
+    aktualisiert: jetzt, serverZeit: jetzt,
+  };
+  if (wechsel) job.verlauf.push({ phase: daten.phase, zeit: jetzt, detail: daten.detail || '' });
+  else if (daten.detail && job.verlauf.length) job.verlauf.at(-1).detail = daten.detail;
+  job.verlauf = job.verlauf.slice(-24);
+}
+
+function gespeicherterAnbieter(link) {
+  try {
+    const eintrag = JSON.parse(fs.readFileSync(path.join(DATEN_ORDNER, 'anbieter.json'), 'utf8'))[link];
+    return eintrag && eintrag.bis > Date.now() / 1000 ? { ok: true, url: eintrag.url, cached: true } : null;
+  } catch { return null; }
 }
 
 // Kurze Polling-Antworten vermeiden Timeouts im vorgeschalteten Reverse-Proxy.
@@ -314,26 +344,49 @@ function anbieterHolen(link) {
   for (const [k, job] of anbieterAufgaben) if (job.bis < Date.now()) anbieterAufgaben.delete(k);
   let job = anbieterAufgaben.get(key);
   if (!job) {
-    if ([...anbieterAufgaben.values()].filter((j) => !j.ergebnis).length >= 5) {
+    const gespeichert = gespeicherterAnbieter(key);
+    if (!gespeichert && anbieterWartende.length + (anbieterAktiv ? 1 : 0) >= 5) {
       return Promise.resolve({ status: 429, inhalt: { ok: false, fehler: 'Zu viele wartende Anbieter-Anfragen' } });
     }
-    job = { bis: Date.now() + 60 * 60 * 1000, ergebnis: null };
+    job = { bis: Date.now() + 60 * 60 * 1000, ergebnis: null, begonnen: Date.now(), verlauf: [] };
     anbieterAufgaben.set(key, job);
-    anbieterSchlange = anbieterSchlange.then(async () => {
-      const hoster = await anbieterLauf(key);
+    anbieterStatus(job, { phase: 'cache', detail: gespeichert ? 'Gespeicherte Freigabe gefunden. Die Sicherheitsprüfung entfällt.' : 'Für diese Folge und diesen Anbieter liegt noch keine Freigabe vor.' });
+    let freigabe;
+    if (gespeichert) freigabe = Promise.resolve(gespeichert);
+    else {
+      anbieterWartende.push(job);
+      anbieterStatus(job, { phase: 'warteschlange', detail: 'Die Freigabe wartet auf einen freien Platz.' });
+      freigabe = anbieterSchlange.then(async () => {
+        anbieterWartende.splice(anbieterWartende.indexOf(job), 1);
+        anbieterAktiv = job;
+        anbieterStatus(job, { phase: 'browser', detail: 'Die Freigabe startet jetzt.' });
+        try { return await anbieterLauf(key, (daten) => anbieterStatus(job, daten)); }
+        finally { anbieterAktiv = null; }
+      });
+      // Nur die Freigabe serialisieren. Die anschließende Videosuche darf parallel laufen.
+      anbieterSchlange = freigabe.catch(() => null);
+    }
+    freigabe.then(async (hoster) => {
       if (!hoster.ok) return { status: 502, inhalt: hoster };
       const ziel = new URL(hoster.url);
       if (!/^https?:$/.test(ziel.protocol) || istLokal(ziel.hostname) || ziel.username || ziel.password || anbieterAdresse(ziel.href)) {
         return { status: 502, inhalt: { ok: false, fehler: 'Anbieter liefert keinen gültigen Video-Link' } };
       }
+      anbieterStatus(job, { phase: 'video', detail: 'Freigabe vorhanden. Die abspielbare Videoquelle wird ermittelt.' });
       return streamHolen(hoster.url);
     }).catch(() => ({ status: 502, inhalt: { ok: false, fehler: 'Anbieter-Auflösung fehlgeschlagen' } }))
       .then((ergebnis) => {
+        anbieterStatus(job, { phase: ergebnis.status === 200 ? 'quelle' : 'fehler', detail: ergebnis.status === 200 ? 'Videoquelle gefunden. Der Browser kann das Video jetzt laden.' : ergebnis.inhalt.fehler });
         job.ergebnis = ergebnis;
         job.bis = Date.now() + (ergebnis.status === 200 ? STREAM_CACHE_MS : 30000);
       });
   }
-  return Promise.resolve(job.ergebnis || { status: 202, inhalt: { ok: false, wartend: true } });
+  const fortschritt = { ...job.fortschritt, serverZeit: Date.now(), verlauf: job.verlauf.map((e) => ({ ...e })) };
+  if (fortschritt.phase === 'warteschlange') {
+    fortschritt.vorDir = Math.max(0, anbieterWartende.indexOf(job)) + (anbieterAktiv ? 1 : 0);
+  }
+  const antwort = job.ergebnis || { status: 202, inhalt: { ok: false, wartend: true } };
+  return Promise.resolve({ ...antwort, inhalt: { ...antwort.inhalt, fortschritt } });
 }
 
 function streamHolen(videoUrl) {

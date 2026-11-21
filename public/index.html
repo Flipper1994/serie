@@ -553,7 +553,7 @@
     <form id="suche" class="suche" autocomplete="off">
       <div class="serie-feld">
         <label for="serie">Serie</label>
-        <input id="serie" type="text" required maxlength="200" placeholder="z. B. Furious" enterkeyhint="search">
+        <input id="serie" type="text" required maxlength="200" placeholder="z. B. Greys Anatomy" enterkeyhint="search">
       </div>
       <button id="los" class="knopf" type="submit">Suchen</button>
     </form>
@@ -923,7 +923,7 @@
       return ergebnisZeigen();
     }
     const meldung = (daten && daten.fehler) || `Fehler ${antwort.status}`;
-    if (antwort.status === 404) return fehlerZeigen('Nicht gefunden', meldung, anfrage, daten);
+    if (antwort.status === 404) return fehlerZeigen(daten && daten.kandidaten && daten.kandidaten.length ? 'Mehrere Serien gefunden' : 'Nicht gefunden', meldung, anfrage, daten);
     if (antwort.status === 429) return fehlerZeigen('Gerade viel los', meldung, anfrage);
     return fehlerZeigen('Das Auslesen hat nicht geklappt', meldung, anfrage);
   }
@@ -999,7 +999,8 @@
         onclick: () => abfragen(anfrage, { verlauf: null }),
       }, 'Erneut versuchen'));
     }
-    zeigeAusgabe(el('section', { class: 'karte fehler-karte', role: 'alert' }, ...teile));
+    const auswahl = daten && daten.kandidaten && daten.kandidaten.length;
+    zeigeAusgabe(el('section', { class: auswahl ? 'karte' : 'karte fehler-karte', role: auswahl ? 'status' : 'alert' }, ...teile));
   }
 
   function folgeWaehlen(nummer) {

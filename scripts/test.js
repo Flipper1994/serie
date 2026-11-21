@@ -43,8 +43,10 @@ const faelle = [
   ['Originaltitel als Namensteil', ['the simpsons', '1'], (r) =>
     r.code === 0 && r.json.serie.titel === 'Die Simpsons | The Simpsons' && r.json.staffel.nummer === 1],
   ['Leerzeichen um den Namen', ['  Furious  ', '1'], (r) => r.code === 0 && r.json.serie.titel === 'Furious'],
-  ['Unbekannte Serie nennt ähnliche Treffer', ['Furiou', '1'], (r) =>
+  ['Tippfehler nennt ähnliche Treffer', ['Furios', '1'], (r) =>
     r.code === 1 && r.json.ok === false && r.json.aehnlicheTreffer.includes('Furious')],
+  ['Teilname ohne Apostroph und deutschen Zusatz', ['Greys anatomy', '1'], (r) =>
+    r.code === 0 && /Grey.?s Anatomy/i.test(r.json.serie.titel) && r.json.staffel.anzahlFolgen > 0],
   ['Fehlende Staffel', ['Furious', '3'], (r) =>
     r.code === 1 && r.json.fehler === 'Staffel 3 gibt es nicht' && r.json.staffeln.join() === '1'],
   ['Fehlende Folge ist kein Fehler', ['Furious', '1', '12'], (r) =>

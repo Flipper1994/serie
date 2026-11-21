@@ -34,15 +34,22 @@ async function main() {
       context.on('page', (p) => p.on('pageerror', (e) => fehler.push(e.message)));
       await context.addInitScript(() => { try { localStorage.setItem('serienKatalog.token', 'test'); } catch {} });
       let anfragen = 0;
+      let pruefungFreigegeben = false;
+      let videoFreigegeben = false;
       await context.route('**/katalog?**', (r) => r.fulfill({ json: katalog }));
       await context.route('**/gesehen', (r) => r.fulfill({ json: { ok: true, serien: [] } }));
       await context.route('**/stream?**', (r) => {
         assert.equal(new URL(r.request().url()).searchParams.get('url'), anbieter);
         assert.equal(r.request().headers().authorization, 'Bearer test');
         anfragen++;
-        return anfragen === 1
-          ? r.fulfill({ status: 202, json: { ok: false, wartend: true } })
-          : r.fulfill({ json: { ok: true, titel: 'Testvideo', art: 'datei', mp4: 'https://example.com/video.mp4', medien: 'medien?test=1' } });
+        const jetzt = Date.now();
+        if (!videoFreigegeben) return r.fulfill({ status: 202, json: { ok: false, wartend: true, fortschritt: {
+          phase: pruefungFreigegeben ? 'pruefung' : 'warteschlange', vorDir: 1,
+          detail: 'Bilder werden geprüft', versuch: 2, maxVersuche: 3, runde: 4, versuchSeit: jetzt - 20000, versuchLimit: 180,
+          begonnen: jetzt - 64000, phaseSeit: jetzt - 20000, aktualisiert: jetzt, serverZeit: jetzt,
+          verlauf: [{ phase: 'cache', zeit: jetzt - 64000, detail: 'Noch keine Freigabe' }, { phase: 'pruefung', zeit: jetzt - 20000, detail: 'Bilder werden geprüft' }],
+        } } });
+        return r.fulfill({ json: { ok: true, titel: 'Testvideo', art: 'datei', mp4: 'https://example.com/video.mp4', medien: 'medien?test=1' } });
       });
       await context.route('**/medien?**', (r) => r.abort());
       await context.route('https://www.gstatic.com/**', (r) => r.abort());
@@ -59,9 +66,19 @@ async function main() {
       const neuerTab = context.waitForEvent('page');
       await page.getByRole('link', { name: 'VOE', exact: true }).click();
       const tab = await neuerTab;
+      await tab.locator('#ladeDetail').filter({ hasText: '1 Freigabe vor dir' }).waitFor();
+      pruefungFreigegeben = true;
+      await tab.locator('#ladeTitel').filter({ hasText: 'Sicherheitsprüfung läuft' }).waitFor();
+      assert.match(await tab.locator('#ladeVersuch').textContent(), /Versuch 2 von 3 · Bildrunde 4/);
+      assert.match(await tab.locator('#ladeGesamt').textContent(), /^1:/);
+      assert.equal(await tab.locator('[data-schritt="pruefung"]').getAttribute('data-status'), 'aktiv');
+      assert.ok(await tab.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Statusanzeige ohne Überlauf');
+      videoFreigegeben = true;
       await tab.locator('#spieler').waitFor({ state: 'visible', timeout: 15000 });
       assert.equal(await tab.locator('#titel').textContent(), 'Testvideo');
-      assert.equal(anfragen, 2, '202 wird bis zur Freigabe abgefragt');
+      assert.ok(anfragen >= 3, '202 wird bis zur Freigabe abgefragt');
+      await tab.locator('#ladeTitel').filter({ hasText: 'Laden unterbrochen' }).waitFor();
+      assert.match(await tab.locator('#ladeDetail').textContent(), /Player konnte das Video nicht laden/);
       assert.equal(await tab.locator('#anbieterSchritt').isVisible(), false);
       assert.ok(await tab.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
       assert.deepEqual(fehler, []);

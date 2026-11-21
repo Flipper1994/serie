@@ -20,6 +20,11 @@ ROOT = Path(__file__).resolve().parent.parent
 RUNTIME = ROOT / '.anbieter'
 PROJECT = RUNTIME / 'recaptcha_ia_solver'
 CACHE = Path(os.getenv('DATEN_ORDNER', str(ROOT / 'daten'))) / 'anbieter.json'
+VERSUCH = 0
+
+
+def status(phase, detail, **daten):
+    print(json.dumps({'fortschritt': {'phase': phase, 'detail': detail, 'versuch': VERSUCH, 'maxVersuche': 3, **daten}}), file=sys.__stdout__, flush=True)
 
 
 async def aufloesen(url, workspace):
@@ -32,8 +37,10 @@ async def aufloesen(url, workspace):
         cache = {}
     hit = cache.get(url)
     if hit and hit['bis'] > time.time():
+        status('cache', 'Gespeicherte Freigabe gefunden. Die Sicherheitsprüfung entfällt.')
         return {'ok': True, 'url': hit['url'], 'cached': True}
 
+    status('modell', 'Die lokale Bilderkennung wird vorbereitet.')
     os.chdir(PROJECT)
     sys.path.insert(0, str(PROJECT))
     sys.path.insert(0, str(RUNTIME / 'cf-solver' / 'solvers' / 'recaptcha'))
@@ -47,6 +54,7 @@ async def aufloesen(url, workspace):
 
     classifier = YOLO(str(PROJECT / 'models' / 'recaptcha_classifier.pt'))
     detector = None
+    bildrunde = 0
     os.chdir(workspace)
     Path('recaptcha_images').mkdir(exist_ok=True)
 
@@ -64,14 +72,20 @@ async def aufloesen(url, workspace):
         return [x - 1 for x in answers]
 
     async def grid(frame, pool, target, n):
+        nonlocal bildrunde
+        bildrunde += 1
+        status('pruefung', 'Neue Bilder werden geprüft.', runde=bildrunde)
         try:
             await frame.locator('.rc-imageselect-dynamic-selected').first.wait_for(state='hidden', timeout=12000)
         except Exception:
             pass
         table = await frame.query_selector('table')
-        return await asyncio.to_thread(erkennen, await table.screenshot(), target, n) if table else []
+        answers = await asyncio.to_thread(erkennen, await table.screenshot(), target, n) if table else []
+        status('pruefung', f'{len(answers)} passende Bilder erkannt. Auswahl und Antwort des Anbieters werden abgewartet.', runde=bildrunde)
+        return answers
 
     image_solve._classify_grid = grid
+    status('browser', 'Der Browser auf dem Server wird gestartet.')
     async with AsyncCamoufox(headless=False, humanize=True, locale='en-US', os='linux') as browser:
         context = await browser.new_context(locale='en-US')
         page = await context.new_page()
@@ -88,6 +102,7 @@ async def aufloesen(url, workspace):
                     abgelehnt = True
 
         page.on('response', response)
+        status('anbieter', 'Die Anbieter-Seite wird geöffnet.')
         await page.goto(url, wait_until='domcontentloaded', timeout=30000)
         await page.locator('.hoster-player').wait_for(timeout=30000)
         try:
@@ -95,6 +110,7 @@ async def aufloesen(url, workspace):
         except Exception:
             pass
         await page.locator('.hoster-player').click()
+        status('pruefung', 'Die Sicherheitsprüfung beim Anbieter startet.', runde=0)
         for _ in range(8):
             await asyncio.sleep(4)
             if result or abgelehnt:
@@ -114,6 +130,7 @@ async def aufloesen(url, workspace):
         await context.close()
     if not result:
         return {'ok': False, 'fehler': 'Die Sicherheitsprüfung beim Anbieter konnte nicht automatisch abgeschlossen werden. Bitte erneut versuchen.'}
+    status('hoster', 'Sicherheitsprüfung abgeschlossen. Der freigegebene Link wird gespeichert.')
     CACHE.parent.mkdir(parents=True, exist_ok=True)
     cache = {k: v for k, v in cache.items() if v.get('bis', 0) > time.time()}
     cache[url] = {'url': result['url'], 'bis': time.time() + 6 * 3600}
@@ -125,14 +142,18 @@ async def aufloesen(url, workspace):
 
 
 async def versuchen(url, workspace):
-    for _ in range(3):
+    global VERSUCH
+    for VERSUCH in range(1, 4):
+        status('browser', f'Freigabeversuch {VERSUCH} von 3 startet.', versuchSeit=int(time.time() * 1000), versuchLimit=180)
         try:
             result = await asyncio.wait_for(aufloesen(url, workspace), timeout=180)
             if result['ok']:
                 return result
         except asyncio.TimeoutError:
             result = {'ok': False, 'fehler': 'Zeitlimit bei der Anbieter-Freigabe'}
-        await asyncio.sleep(3)
+        if VERSUCH < 3:
+            status('wiederholung', 'Der Versuch war nicht erfolgreich. Ein neuer Versuch wird vorbereitet.')
+            await asyncio.sleep(3)
     return result
 
 

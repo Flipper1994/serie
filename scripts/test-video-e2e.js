@@ -20,10 +20,16 @@ const { chromium } = require('playwright');
     const link = page.getByRole('link', { name, exact: true }).nth(Number(process.env.TEST_FOLGEN_INDEX || 0));
     await link.waitFor({ timeout: 90000 });
     const neuerTab = context.waitForEvent('page');
+    const start = Date.now();
     await link.click();
     const tab = await neuerTab;
     let wartend = 0;
-    tab.on('response', (r) => { if (r.url().includes('/stream?') && r.status() === 202) wartend++; });
+    const phasen = new Set();
+    tab.on('response', async (r) => {
+      if (!r.url().includes('/stream?')) return;
+      if (r.status() === 202) wartend++;
+      try { const d = await r.json(); if (d.fortschritt) phasen.add(d.fortschritt.phase); } catch {}
+    });
     await Promise.race([
       tab.locator('#spieler').waitFor({ state: 'visible', timeout: 12 * 60 * 1000 }),
       tab.locator('#meldung.fehler').waitFor({ state: 'visible', timeout: 12 * 60 * 1000 }).then(async () => { throw new Error(await tab.locator('#meldung').textContent()); }),
@@ -37,7 +43,8 @@ const { chromium } = require('playwright');
     assert.ok(stand.breite > 0 && stand.dauer > 10);
     assert.equal(await tab.locator('#anbieterSchritt').isVisible(), false);
     assert.equal(context.pages().length, 2);
+    await tab.locator('#ladeTitel').filter({ hasText: 'Video läuft' }).waitFor({ timeout: 10000 });
     if (process.env.TEST_SCREENSHOT) await tab.screenshot({ path: process.env.TEST_SCREENSHOT, fullPage: true });
-    console.log(JSON.stringify({ ok: true, anbieter: name, polling: wartend, ...stand }));
+    console.log(JSON.stringify({ ok: true, anbieter: name, ladeSekunden: Math.round((Date.now() - start) / 1000), phasen: [...phasen], polling: wartend, ...stand }));
   } finally { await browser.close(); }
 })().catch((e) => { console.error(e.message); process.exitCode = 1; });

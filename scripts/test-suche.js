@@ -1,0 +1,18 @@
+const assert = require('node:assert/strict');
+const { passende, vorschlaege } = require('./serien-suche');
+const grey = 'Grey’s Anatomy – Die jungen Ärzte';
+const titel = [grey, 'Grey’s Anatomy: Station 19', 'Breaking Bad', 'Breaking Bad: Extras', 'Die Simpsons | The Simpsons', 'Türkisch für Anfänger', 'S.W.A.T.', 'Fast & Furious Spy Racers'];
+assert.deepEqual(passende([grey], 'Greys anatomy'), [grey]);
+assert.deepEqual(passende([grey], "  GREY'S   ANATOMY "), [grey]);
+assert.deepEqual(passende([grey], 'anatomy greys'), [grey]);
+assert.deepEqual(passende(titel, 'Breaking Bad'), ['Breaking Bad'], 'Exakte Serie vor Fortsetzungen');
+assert.equal(passende(titel, 'greys anatomy').length, 2, 'Mehrdeutige Namen brauchen eine Auswahl');
+assert.deepEqual(passende(titel, 'the simpsons'), ['Die Simpsons | The Simpsons']);
+assert.deepEqual(passende(titel, 'turkisch fur anfanger'), ['Türkisch für Anfänger']);
+assert.deepEqual(passende(titel, 'swat'), ['S.W.A.T.']);
+assert.deepEqual(passende(titel, 'fast und furious'), ['Fast & Furious Spy Racers']);
+assert.deepEqual(passende(titel, ''), []);
+assert.deepEqual(passende(titel, 'Vollkommen andere Serie'), []);
+assert.ok(vorschlaege(titel, 'greys anatomyy').includes(grey));
+assert.deepEqual(vorschlaege(titel, 'xzzqwerty'), []);
+console.log('OK: Teilnamen, Apostrophe, Umlaute, Originaltitel, Mehrdeutigkeit und Tippfehler-Vorschläge');

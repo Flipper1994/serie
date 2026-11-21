@@ -16,6 +16,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { chromium } = require('playwright');
+const { passende, vorschlaege } = require('./serien-suche');
 
 const BASIS = 'https://burningseries.ac';
 const ZEITLIMIT_MS = 30000;
@@ -50,17 +51,7 @@ function argumenteLesen(argv) {
   };
 }
 
-// Viele Titel haben die Form „Deutscher Titel | Originaltitel“. Ein Name passt,
-// wenn er dem ganzen Titel entspricht, sonst wenn er einem der beiden Teile
-// entspricht. Groß-/Kleinschreibung ist egal.
-function passende(titelListe, wunsch) {
-  const einmalig = [...new Set(titelListe)];
-  const ganz = einmalig.filter((t) => t.toLowerCase() === wunsch);
-  if (ganz.length) return ganz;
-  return einmalig.filter((t) => t.toLowerCase().split('|').some((teil) => teil.trim() === wunsch));
-}
-
-// Tippt den Namen ins Suchfeld der Serienliste und klickt den passenden Treffer an.
+// Liest die vorhandene Serienliste; tolerant suchen und den gewählten Link öffnen.
 async function serieOeffnen(page, name) {
   await page.goto(BASIS, { waitUntil: 'domcontentloaded', timeout: ZEITLIMIT_MS });
   await page.getByText('Got it!').click({ timeout: 3000 }).catch(() => {});
@@ -69,38 +60,20 @@ async function serieOeffnen(page, name) {
   const feld = page.locator('#serInput');
   await feld.waitFor({ state: 'visible', timeout: ZEITLIMIT_MS });
   await page.locator('#seriesContainer a').first().waitFor({ state: 'attached', timeout: ZEITLIMIT_MS });
-  await feld.click();
-  await feld.pressSequentially(name, { delay: 50 });
-  await page.waitForTimeout(1000);
-
-  const titelLesen = (auswahl) =>
-    page.locator(auswahl).evaluateAll((links) => links.map((a) => a.textContent.trim()));
-  const wunsch = name.toLowerCase();
-  const sichtbar = await titelLesen('#seriesContainer a:visible');
-  let kandidaten = passende(sichtbar, wunsch);
-
-  // Bei Sonderzeichen (z. B. „&“) findet der Filter der Seite nichts, obwohl es
-  // die Serie gibt. Dann Feld leeren und in der ganzen Liste nachsehen.
+  const links = await page.locator('#seriesContainer a').evaluateAll((elemente) => elemente.map((a) => ({ titel: a.textContent.trim(), href: a.href })));
+  const titelListe = links.map((a) => a.titel);
+  const kandidaten = passende(titelListe, name);
   if (kandidaten.length === 0) {
-    kandidaten = passende(await titelLesen('#seriesContainer a'), wunsch);
-    if (kandidaten.length === 0) {
-      throw new Fachfehler(`Keine Serie mit genau diesem Namen gefunden: „${name}“`, {
-        aehnlicheTreffer: sichtbar.slice(0, 25),
-      });
-    }
-    await feld.fill('');
-    await feld.press('Backspace');
-    await page.waitForTimeout(800);
+    throw new Fachfehler(`Keine passende Serie gefunden: „${name}“`, { aehnlicheTreffer: vorschlaege(titelListe, name) });
   }
   if (kandidaten.length > 1) {
-    throw new Fachfehler(`Der Name „${name}“ passt auf mehrere Serien`, { kandidaten });
+    throw new Fachfehler(kandidaten.length > 25
+      ? `${kandidaten.length} Serien passen zu „${name}“. Hier sind die ersten 25 Treffer. Mit mehr Wörtern kannst du die Suche eingrenzen.`
+      : `Welche Serie meinst du mit „${name}“?`, { kandidaten: kandidaten.slice(0, 25) });
   }
   const titel = kandidaten[0];
 
-  // Der Filter hebt den Suchbegriff in jedem Treffer hervor. Deshalb wird der
-  // Link über seinen ganzen Text gewählt, nicht über ein Teilstück darin.
-  const ganzerText = new RegExp(`^\\s*${titel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`);
-  await page.locator('#seriesContainer a:visible').filter({ hasText: ganzerText }).first().click();
+  await page.goto(links.find((a) => a.titel === titel).href, { waitUntil: 'domcontentloaded', timeout: ZEITLIMIT_MS });
   await page.locator('section.serie table.episodes').waitFor({ state: 'attached', timeout: ZEITLIMIT_MS });
   return titel;
 }
