@@ -419,6 +419,14 @@
     .stream-buttons { width: 100%; justify-content: flex-start; margin-top: 4px; padding-left: 46px; }
   }
 
+  .player-box.link-box { background: var(--flaeche-2); padding: 12px 14px; font-size: .875rem; }
+  .link-box p { margin: 0 0 10px; color: var(--text-2); }
+  .link-box a { color: var(--akzent); font-weight: 600; }
+  .link-form { display: flex; gap: 8px; flex-wrap: wrap; }
+  .link-feld {
+    flex: 1 1 200px; min-width: 0; padding: 8px 12px;
+    border: 1px solid var(--linie-2); border-radius: var(--radius-klein); background: var(--flaeche);
+  }
   /* Player erscheint unter der Folge */
   .player-box {
     margin: 0 8px 8px;
@@ -949,68 +957,29 @@
         continue;
       }
       const btn = el('button', { type: 'button', class: 'stream-button', 'data-url': h.url }, h.name);
-      btn.addEventListener('click', async () => {
-        if (btn.classList.contains('laadt')) return;
-
-        // Bestehenden Player unter dieser Folge entfernen
+      // Der Anbieter-Link liegt hinter einer Captcha-Abfrage und lässt sich
+      // nicht automatisch auflösen: Seite öffnen, Videolink kopieren, einfügen.
+      btn.addEventListener('click', () => {
         const bestehend = folgeNode.querySelector(':scope > .player-box');
-        if (bestehend) bestehend.remove();
-
-        // Button in Ladezustand
-        btn.classList.add('laadt');
-        btn.disabled = true;
-
-        try {
-          const p = new URLSearchParams({ url: h.url });
-          const antwort = await fetch(`stream?${p}`, {
-            headers: { Authorization: `Bearer ${tokenLesen()}` },
-          });
-          const daten = await antwort.json().catch(() => null);
-
-          if (!antwort.ok || !daten || !daten.ok) {
-            const msg = (daten && daten.fehler) || `Fehler ${antwort.status}`;
-            btn.classList.remove('laadt');
-            btn.classList.add('fehler');
-            btn.disabled = false;
-            setTimeout(() => btn.classList.remove('fehler'), 3000);
-            folgeNode.append(el('div', { class: 'player-box' },
-              el('div', { class: 'player-fehler' },
-                el('span', {}, '⚠ '),
-                el('span', {}, msg))));
-            return;
-          }
-
-          // Erfolg: Player unter der Folge einblenden
-          btn.classList.remove('laadt');
-          btn.disabled = false;
-          const video = el('video', {
-            controls: '',
-            autoplay: '',
-            preload: 'metadata',
-            playsinline: '',
-          });
-          video.src = daten.mp4;
-          const schliessen = el('button', { type: 'button', class: 'player-schliessen', 'aria-label': 'Player schließen' }, '×');
-          schliessen.addEventListener('click', () => {
-            video.pause();
-            box.remove();
-          });
-          const box = el('div', { class: 'player-box' },
-            el('div', { class: 'player-hinweis' },
-              el('span', {}, `Quelle: ${h.name}${daten.cached ? ' · aus Cache' : ''}`),
-              schliessen),
-            video);
-          folgeNode.append(box);
-        } catch (fehler) {
-          btn.classList.remove('laadt');
-          btn.classList.add('fehler');
-          btn.disabled = false;
-          setTimeout(() => btn.classList.remove('fehler'), 3000);
-          folgeNode.append(el('div', { class: 'player-box' },
-            el('div', { class: 'player-fehler' },
-              el('span', {}, '⚠ '),
-              el('span', {}, 'Verbindung zum Stream-Dienst fehlgeschlagen'))));
+        if (bestehend) {
+          bestehend.remove();
+          if (bestehend.dataset.url === h.url) return;   // zweiter Klick schließt
         }
+        const feld = el('input', { type: 'url', class: 'link-feld', placeholder: `${h.name}-Link einfügen (https://…)`, 'aria-label': 'Videolink' });
+        const los = el('button', { type: 'submit', class: 'stream-button' }, 'Abspielen');
+        const formular = el('form', { class: 'link-form' }, feld, los);
+        formular.addEventListener('submit', (ereignis) => {
+          ereignis.preventDefault();
+          const link = feld.value.trim();
+          if (!/^https?:\/\//i.test(link)) return feld.focus();
+          location.href = `video?${new URLSearchParams({ url: link })}`;
+        });
+        const box = el('div', { class: 'player-box link-box', 'data-url': h.url },
+          el('p', {}, 'Der Link zum Video liegt hinter einer Sicherheitsabfrage des Anbieters. ',
+            el('a', { href: h.url, target: '_blank', rel: 'noopener noreferrer' }, `1. ${h.name}-Seite öffnen`),
+            ', dort das Video starten, 2. dessen Adresse kopieren und 3. hier einfügen:'),
+          formular);
+        folgeNode.append(box);
       });
       container.append(btn);
     }
