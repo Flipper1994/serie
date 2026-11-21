@@ -382,6 +382,7 @@
     justify-content: flex-end;
   }
   .stream-button {
+    text-decoration: none;
     display: inline-flex;
     align-items: center;
     gap: 5px;
@@ -956,31 +957,37 @@
         container.append(el('span', { class: 'stream-button', style: 'opacity:.5;cursor:default' }, h.name));
         continue;
       }
-      const btn = el('button', { type: 'button', class: 'stream-button', 'data-url': h.url }, h.name);
-      // Der Anbieter-Link liegt hinter einer Captcha-Abfrage und lässt sich
-      // nicht automatisch auflösen: Seite öffnen, Videolink kopieren, einfügen.
-      btn.addEventListener('click', () => {
-        const bestehend = folgeNode.querySelector(':scope > .player-box');
-        if (bestehend) {
-          bestehend.remove();
-          if (bestehend.dataset.url === h.url) return;   // zweiter Klick schließt
-        }
-        const feld = el('input', { type: 'url', class: 'link-feld', placeholder: `${h.name}-Link einfügen (https://…)`, 'aria-label': 'Videolink' });
-        const los = el('button', { type: 'submit', class: 'stream-button' }, 'Abspielen');
-        const formular = el('form', { class: 'link-form' }, feld, los);
-        formular.addEventListener('submit', (ereignis) => {
-          ereignis.preventDefault();
-          const link = feld.value.trim();
-          if (!/^https?:\/\//i.test(link)) return feld.focus();
-          location.href = `video?${new URLSearchParams({ url: link })}`;
-        });
-        const box = el('div', { class: 'player-box link-box', 'data-url': h.url },
-          el('p', {}, 'Der Link zum Video liegt hinter einer Sicherheitsabfrage des Anbieters. ',
-            el('a', { href: h.url, target: '_blank', rel: 'noopener noreferrer' }, `1. ${h.name}-Seite öffnen`),
-            ', dort das Video starten, 2. dessen Adresse kopieren und 3. hier einfügen:'),
-          formular);
-        folgeNode.append(box);
-      });
+      // Ein Klick öffnet die Anbieter-Seite in einem neuen Tab.
+      const btn = el('a', { class: 'stream-button', href: h.url, target: '_blank', rel: 'noopener noreferrer' }, h.name);
+
+      // TODO (später): Videolink direkt übernehmen. Der Anbieter-Link liegt hinter
+      // einer Captcha-Abfrage; bis dahin bleibt die Box mit dem Einfügefeld, die
+      // den kopierten Link an die Videoseite übergibt, auskommentiert.
+      // const btn = el('button', { type: 'button', class: 'stream-button', 'data-url': h.url }, h.name);
+      // // Der Anbieter-Link liegt hinter einer Captcha-Abfrage und lässt sich
+      // // nicht automatisch auflösen: Seite öffnen, Videolink kopieren, einfügen.
+      // btn.addEventListener('click', () => {
+      //   const bestehend = folgeNode.querySelector(':scope > .player-box');
+      //   if (bestehend) {
+      //     bestehend.remove();
+      //     if (bestehend.dataset.url === h.url) return;   // zweiter Klick schließt
+      //   }
+      //   const feld = el('input', { type: 'url', class: 'link-feld', placeholder: `${h.name}-Link einfügen (https://…)`, 'aria-label': 'Videolink' });
+      //   const los = el('button', { type: 'submit', class: 'stream-button' }, 'Abspielen');
+      //   const formular = el('form', { class: 'link-form' }, feld, los);
+      //   formular.addEventListener('submit', (ereignis) => {
+      //     ereignis.preventDefault();
+      //     const link = feld.value.trim();
+      //     if (!/^https?:\/\//i.test(link)) return feld.focus();
+      //     location.href = `video?${new URLSearchParams({ url: link })}`;
+      //   });
+      //   const box = el('div', { class: 'player-box link-box', 'data-url': h.url },
+      //     el('p', {}, 'Der Link zum Video liegt hinter einer Sicherheitsabfrage des Anbieters. ',
+      //       el('a', { href: h.url, target: '_blank', rel: 'noopener noreferrer' }, `1. ${h.name}-Seite öffnen`),
+      //       ', dort das Video starten, 2. dessen Adresse kopieren und 3. hier einfügen:'),
+      //     formular);
+      //   folgeNode.append(box);
+      // });
       container.append(btn);
     }
     return container;
