@@ -2,7 +2,9 @@
 
 Skill „serien-katalog“ für Claude: liest per Headless-Browser (Playwright) die
 Staffelübersicht einer Serie auf burningseries.ac aus – Titel, Beschreibung,
-Besetzung, Sprachen, Staffeln und je Folge Nummer und Titel.
+Besetzung, Sprachen, Staffeln und je Folge Nummer, Titel und Anbieter-Links.
+Die Weboberfläche dient zugleich als Serien-Register: Gesehene Folgen lassen
+sich abhaken.
 
 ## Als Skill installieren
 
@@ -22,19 +24,36 @@ Staffel `0` steht für „Specials“. Ausgabe ist JSON, dazu `ergebnis.json` un
 zurück. `ausgabe=original` (Standard) liefert sie unverändert – Anfrage,
 Seriendaten, Staffel mit Folgen, Folge und Browser-Diagnose; `ausgabe=kurz`
 eine flache Fassung (Serientitel, Folgen mit Nummer und Titel, Staffeln,
-Sprachen, Beschreibung, Infos), die die Oberfläche nutzt. In beiden Formen
-fehlen die Anbieter-Links je Folge.
+Sprachen, Beschreibung, Infos) ohne Anbieter-Links.
 
     curl -H "Authorization: Bearer <Token>" \
       "http://127.0.0.1:8080/katalog?serie=furious&staffel=1&folge=6"
 
 `staffel` ist optional (Standard 1), `folge` ebenfalls. `GET /health` antwortet
-ohne Token. `GET /` liefert eine Oberfläche (`public/index.html`): Suche nach
-Serie, Staffel und Folge, Folgentabelle, Staffel-Leiste, Sprachen und „Über die
-Serie“. Sie fragt beim ersten Aufruf das Token ab und merkt es sich im Browser;
-ein Link mit `#token=<Token>` setzt es direkt. Die Adresse enthält die Abfrage
-(`?serie=furious&staffel=1&folge=6`) und lässt sich teilen. Es läuft immer nur ein Browser gleichzeitig; Ergebnisse bleiben
+ohne Token. Es läuft immer nur ein Browser gleichzeitig; Ergebnisse bleiben
 60 Minuten im Speicher.
+
+### Oberfläche und Gesehen-Register
+
+`GET /` liefert die Oberfläche (`public/index.html`): Suche nach einer Serie,
+Staffel-Leiste, Folgenliste mit Anbietern, Sprachen und „Über die Serie“. Jede
+Folge hat einen Haken für „gesehen“, dazu gibt es „Ganze Staffel gesehen“ und
+einen Zähler. Die Startseite „Meine Serien“ zeigt alle Serien mit Haken samt
+letztem Stand; ein Klick öffnet die Staffel, bei der es weitergeht.
+
+Die Oberfläche fragt beim ersten Aufruf das Token ab und merkt es sich im
+Browser; ein Link mit `#token=<Token>` setzt es direkt, „Zugangslink kopieren“
+in der Fußzeile erzeugt ihn für ein weiteres Gerät. Die Adresse enthält die
+Abfrage (`?serie=furious&staffel=1`).
+
+Das Register liegt auf dem Server in `daten/gesehen.json` (Ordner änderbar mit
+`DATEN_ORDNER`) und gilt damit auf allen Geräten. Die Datei gehört nicht zum
+Repo; für eine Sicherung reicht es, sie zu kopieren.
+
+    GET  /gesehen     alle Serien mit abgehakten Folgen
+    POST /gesehen     { "serie": "Furious", "staffel": 1, "folgen": [1, 2],
+                        "gesehen": true, "anzahlFolgen": 8, "staffeln": ["1"] }
+    POST /gesehen     { "serie": "Furious", "entfernen": true }
 
 Einrichten (Debian/Ubuntu, als root, Node ab Version 18 vorausgesetzt):
 
@@ -54,7 +73,7 @@ Einrichten (Debian/Ubuntu, als root, Node ab Version 18 vorausgesetzt):
 Der Dienst lauscht nur auf `127.0.0.1:8080`. Für Zugriff von außen einen
 Reverse-Proxy mit TLS davorsetzen oder in `/etc/serien-katalog.env`
 `HOST=0.0.0.0` setzen (dann geht das Token unverschlüsselt über die Leitung).
-Weitere Einstellungen: `PORT`, `CACHE_MINUTEN`.
+Weitere Einstellungen: `PORT`, `CACHE_MINUTEN`, `DATEN_ORDNER`.
 
 Läuft der Reverse-Proxy selbst in Docker, kommt er nicht an `127.0.0.1` des
 Servers. Dann den Dienst auf das Gateway des Docker-Netzes legen, z. B.
@@ -66,8 +85,3 @@ Servers. Dann den Dienst auf das Gateway des Docker-Netzes legen, z. B.
     node scripts/test.js
 
 16 Fälle gegen die echte Seite, etwa drei Minuten.
-
-## Grenze
-
-Der Skill endet auf der Staffelübersicht. Er öffnet keine Episodenseiten und
-gibt keine Episoden- oder Anbieter-Links aus.

@@ -12,14 +12,16 @@
 //           ausgabe=kurz: flache Fassung für die Oberfläche (serie als Titel,
 //           folgen, staffeln, sprachen, beschreibung, infos).
 //           GET /health antwortet ohne Token und ohne Browserlauf.
+// Register: GET /gesehen liefert alle Serien mit abgehakten Folgen.
+//           POST /gesehen mit JSON { serie, staffel, folgen: [Nr, …],
+//           gesehen: true|false, anzahlFolgen?, staffeln? } hakt Folgen ab
+//           oder nimmt den Haken weg; { serie, entfernen: true } löscht eine
+//           Serie aus dem Register. Beides mit demselben Token.
 // Umgebung: API_TOKEN (Pflicht), PORT (8080), HOST (127.0.0.1),
-//           CACHE_MINUTEN (60).
+//           CACHE_MINUTEN (60), DATEN_ORDNER (<Projekt>/daten).
 // Status:   200 Erfolg, 400 falscher Aufruf, 401 Token fehlt/falsch,
 //           404 Serie oder Staffel fehlt, 429 zu viele wartende Anfragen,
-//           502 technischer Fehler beim Auslesen.
-//
-// Hinweis: Es werden KEINE Anbieter-Links mehr herausgefiltert. Die Felder
-// staffel.folgen[].hoster bleiben in der original-Ausgabe enthalten.
+//           500 Register nicht speicherbar, 502 technischer Fehler beim Auslesen.
 
 const http = require('http');
 const path = require('path');
@@ -36,6 +38,10 @@ const LAUF_ZEITLIMIT_MS = 90000;
 const MAX_WARTEND = 5;
 const SKRIPT = path.join(__dirname, 'katalog.js');
 const OBERFLAECHE = path.join(__dirname, '..', 'public', 'index.html');
+const DATEN_ORDNER = process.env.DATEN_ORDNER || path.join(__dirname, '..', 'daten');
+const REGISTER_DATEI = path.join(DATEN_ORDNER, 'gesehen.json');
+const MAX_KOERPER = 64 * 1024;
+const MAX_SERIEN = 5000;
 const SICHERHEITS_KOPF = {
   'Content-Security-Policy':
     "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; " +
@@ -87,11 +93,6 @@ function eingereiht(aufgabe) {
 const cache = new Map();
 const laufend = new Map();
 
-// Gibt die Daten unverändert zurück (keine Filterung der Anbieter-Links).
-function datenDurchreichen(daten) {
-  return daten;
-}
-
 const AUSGABEN = ['original', 'kurz'];
 
 // Baut die Antwort in der gewünschten Form. daten ist die Originalausgabe
@@ -134,7 +135,7 @@ function staffelHolen(serie, staffel) {
     let ergebnis = await skriptLauf(serie, staffel);
     if (ergebnis.code === 2) ergebnis = await skriptLauf(serie, staffel);
     if (ergebnis.code === 0 && ergebnis.daten.ok) {
-      const inhalt = datenDurchreichen(ergebnis.daten);
+      const inhalt = ergebnis.daten;
       cache.set(schluessel, { bis: Date.now() + CACHE_MS, inhalt });
       return { status: 200, inhalt };
     }
@@ -142,6 +143,118 @@ function staffelHolen(serie, staffel) {
   }).finally(() => laufend.delete(schluessel));
   laufend.set(schluessel, lauf);
   return lauf;
+}
+
+// ---------- Gesehen-Register ----------
+// Eine JSON-Datei: { serien: { <titel klein>: { titel, staffeln, geaendert,
+// gesehen: { <Staffelnr>: { anzahlFolgen, folgen: [Nr, …] } } } } }
+function registerLaden() {
+  let text;
+  try {
+    text = fs.readFileSync(REGISTER_DATEI, 'utf8');
+  } catch (fehler) {
+    if (fehler.code === 'ENOENT') return { serien: {} };
+    throw fehler;
+  }
+  try {
+    const daten = JSON.parse(text);
+    if (daten && typeof daten.serien === 'object' && daten.serien !== null) return daten;
+    throw new Error('unerwarteter Aufbau');
+  } catch {
+    // Unlesbare Datei nicht überschreiben, sondern zur Seite legen.
+    const ablage = `${REGISTER_DATEI}.unlesbar-${Date.now()}`;
+    fs.renameSync(REGISTER_DATEI, ablage);
+    console.error(`Register war nicht lesbar und liegt jetzt unter ${ablage}; es wird ein leeres angelegt.`);
+    return { serien: {} };
+  }
+}
+
+function registerSpeichern() {
+  fs.mkdirSync(DATEN_ORDNER, { recursive: true });
+  const vorlaeufig = `${REGISTER_DATEI}.neu`;
+  fs.writeFileSync(vorlaeufig, JSON.stringify(register, null, 2));
+  fs.renameSync(vorlaeufig, REGISTER_DATEI);
+}
+
+const register = registerLaden();
+const nummer = (wert) => Number.isInteger(wert) && wert >= 0 && wert <= 9999;
+
+// Wendet eine Änderung an. Liefert { status, inhalt }.
+function registerAendern(eingabe) {
+  const falsch = (fehler) => ({ status: 400, inhalt: { ok: false, fehler } });
+  if (!eingabe || typeof eingabe !== 'object' || Array.isArray(eingabe)) return falsch('JSON-Objekt erwartet');
+  const titel = typeof eingabe.serie === 'string' ? eingabe.serie.trim() : '';
+  if (!titel || titel.length > 200) return falsch('serie fehlt oder ist zu lang');
+  const schluessel = titel.toLowerCase();
+  const vorher = register.serien[schluessel] ? JSON.stringify(register.serien[schluessel]) : null;
+
+  if (eingabe.entfernen === true) {
+    delete register.serien[schluessel];
+  } else {
+    const { staffel, folgen, gesehen, anzahlFolgen, staffeln } = eingabe;
+    if (!nummer(staffel)) return falsch('staffel muss eine ganze Zahl sein');
+    if (!Array.isArray(folgen) || folgen.length === 0 || folgen.length > 2000 || !folgen.every(nummer)) {
+      return falsch('folgen muss eine Liste ganzer Zahlen sein');
+    }
+    if (typeof gesehen !== 'boolean') return falsch('gesehen muss true oder false sein');
+    if (anzahlFolgen !== undefined && !nummer(anzahlFolgen)) return falsch('anzahlFolgen muss eine ganze Zahl sein');
+    if (staffeln !== undefined && !(Array.isArray(staffeln) && staffeln.length <= 300 &&
+        staffeln.every((s) => typeof s === 'string' && s.length <= 60))) {
+      return falsch('staffeln muss eine Liste kurzer Texte sein');
+    }
+    if (!register.serien[schluessel] && Object.keys(register.serien).length >= MAX_SERIEN) {
+      return falsch('Das Register ist voll');
+    }
+
+    const eintrag = register.serien[schluessel] || { titel, staffeln: [], geaendert: null, gesehen: {} };
+    eintrag.titel = titel;
+    if (staffeln) eintrag.staffeln = staffeln;
+    const s = eintrag.gesehen[staffel] || { anzahlFolgen: null, folgen: [] };
+    if (anzahlFolgen !== undefined) s.anzahlFolgen = anzahlFolgen;
+    const menge = new Set(s.folgen);
+    for (const f of folgen) gesehen ? menge.add(f) : menge.delete(f);
+    s.folgen = [...menge].sort((a, b) => a - b);
+    if (s.folgen.length) eintrag.gesehen[staffel] = s;
+    else delete eintrag.gesehen[staffel];
+    eintrag.geaendert = new Date().toISOString();
+    // Ohne einen einzigen Haken verschwindet die Serie wieder aus dem Register.
+    if (Object.keys(eintrag.gesehen).length) register.serien[schluessel] = eintrag;
+    else delete register.serien[schluessel];
+  }
+
+  try {
+    registerSpeichern();
+  } catch (fehler) {
+    // Stand im Speicher zurücksetzen, damit er zur Datei passt.
+    if (vorher) register.serien[schluessel] = JSON.parse(vorher);
+    else delete register.serien[schluessel];
+    console.error(`Register ließ sich nicht speichern: ${fehler.code || fehler.message}`);
+    return { status: 500, inhalt: { ok: false, fehler: 'Das Register ließ sich nicht speichern' } };
+  }
+  return { status: 200, inhalt: { ok: true, serie: register.serien[schluessel] || null } };
+}
+
+// Liest den Anfragekörper als JSON; null bei zu großem oder unlesbarem Inhalt.
+function koerperLesen(req) {
+  return new Promise((fertig) => {
+    const teile = [];
+    let groesse = 0;
+    req.on('data', (teil) => {
+      groesse += teil.length;
+      if (groesse > MAX_KOERPER) {
+        fertig(null);
+        req.destroy();
+      } else teile.push(teil);
+    });
+    req.on('end', () => {
+      try {
+        fertig(JSON.parse(Buffer.concat(teile).toString('utf8')));
+      } catch {
+        fertig(null);
+      }
+    });
+    req.on('error', () => fertig(null));
+  });
 }
 
 function tokenStimmt(kopfzeile) {
@@ -152,7 +265,11 @@ function tokenStimmt(kopfzeile) {
 
 function antworten(res, status, inhalt) {
   const text = JSON.stringify(inhalt, null, 2);
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(text) });
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': Buffer.byteLength(text),
+    'Cache-Control': 'no-store',
+  });
   res.end(text);
 }
 
@@ -160,7 +277,8 @@ const ganzzahl = (wert) => /^\d{1,4}$/.test(wert);
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
-  if (req.method !== 'GET') return antworten(res, 405, { ok: false, fehler: 'Nur GET ist erlaubt' });
+  const schreibend = req.method === 'POST' && url.pathname === '/gesehen';
+  if (req.method !== 'GET' && !schreibend) return antworten(res, 405, { ok: false, fehler: 'Nur GET ist erlaubt (POST nur auf /gesehen)' });
   if (url.pathname === '/health') return antworten(res, 200, { ok: true });
   if (url.pathname === '/' || url.pathname === '/index.html') {
     return fs.readFile(OBERFLAECHE, (fehler, inhalt) => {
@@ -174,8 +292,18 @@ const server = http.createServer(async (req, res) => {
       res.end(inhalt);
     });
   }
-  if (url.pathname !== '/katalog') return antworten(res, 404, { ok: false, fehler: 'Unbekannter Pfad' });
+  if (url.pathname !== '/katalog' && url.pathname !== '/gesehen') {
+    return antworten(res, 404, { ok: false, fehler: 'Unbekannter Pfad' });
+  }
   if (!tokenStimmt(req.headers.authorization)) return antworten(res, 401, { ok: false, fehler: 'Token fehlt oder ist falsch' });
+
+  if (url.pathname === '/gesehen') {
+    if (!schreibend) return antworten(res, 200, { ok: true, serien: Object.values(register.serien) });
+    const eingabe = await koerperLesen(req);
+    if (eingabe === null) return antworten(res, 400, { ok: false, fehler: 'Der Inhalt ist kein lesbares JSON oder zu groß' });
+    const { status, inhalt } = registerAendern(eingabe);
+    return antworten(res, status, inhalt);
+  }
 
   const serie = (url.searchParams.get('serie') || '').trim();
   const staffelArg = url.searchParams.get('staffel') ?? '1';
