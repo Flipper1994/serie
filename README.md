@@ -57,6 +57,10 @@ Repo; für eine Sicherung reicht es, sie zu kopieren.
 
 ### Stream-Resolver (direkte Video-URLs)
 
+Standardmäßig abgeschaltet: `/stream` antwortet mit 404, und die Anbieter sind
+in der Oberfläche einfache Links. Eingeschaltet wird mit `STREAM_AKTIV=1` in
+`/etc/serien-katalog.env` und einem Neustart des Dienstes.
+
 `GET /stream?url=<hoster-url>` löst die direkte MP4-URL aus einer Hoster-Seite
 via `yt-dlp` auf. Token wie bei `/katalog`. Antwort:
 
