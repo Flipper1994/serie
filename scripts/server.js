@@ -339,7 +339,7 @@ function gespeicherterAnbieter(link) {
 }
 
 // Kurze Polling-Antworten vermeiden Timeouts im vorgeschalteten Reverse-Proxy.
-// Gleiche Links teilen eine Aufgabe; Bildmodelle laufen nur einmal gleichzeitig.
+// Gleiche Links teilen eine Aufgabe; neue Anbieter-Freigaben laufen nacheinander.
 function anbieterHolen(link) {
   const u = new URL(link); u.hash = ''; const key = u.href;
   for (const [k, job] of anbieterAufgaben) if (job.bis < Date.now()) anbieterAufgaben.delete(k);

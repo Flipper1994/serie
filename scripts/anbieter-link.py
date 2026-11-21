@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Anbieter-Freigabe mit Camoufox und den vorhandenen lokalen Bild-Solvern.
+"""Anbieter-Freigabe mit Camoufox: 2Captcha bei hinterlegtem Schlüssel, sonst lokal.
 
-Installation: deploy/install-anbieter.sh. JSON auf stdout, keine externen APIs.
+Installation: deploy/install-anbieter.sh. JSON und Fortschritt auf stdout.
 Die Fremdprojekte und Modellgewichte werden auf feste Git-Stände festgelegt.
 """
 import asyncio
@@ -21,10 +21,27 @@ RUNTIME = ROOT / '.anbieter'
 PROJECT = RUNTIME / 'recaptcha_ia_solver'
 CACHE = Path(os.getenv('DATEN_ORDNER', str(ROOT / 'daten'))) / 'anbieter.json'
 VERSUCH = 0
+KEYDATEI = Path(os.getenv('TWOCAPTCHA_KEY_FILE', str(ROOT / '.2captcha-key')))
+MODUS = os.getenv('ANBIETER_CAPTCHA', '2captcha' if KEYDATEI.is_file() else 'lokal')
+MAX_VERSUCHE = 1 if MODUS == '2captcha' else 3
 
 
 def status(phase, detail, **daten):
-    print(json.dumps({'fortschritt': {'phase': phase, 'detail': detail, 'versuch': VERSUCH, 'maxVersuche': 3, **daten}}), file=sys.__stdout__, flush=True)
+    print(json.dumps({'fortschritt': {'phase': phase, 'detail': detail, 'versuch': VERSUCH, 'maxVersuche': MAX_VERSUCHE, **daten}}), file=sys.__stdout__, flush=True)
+
+
+def cache_speichern(url, result):
+    try:
+        cache = json.loads(CACHE.read_text())
+    except (OSError, ValueError):
+        cache = {}
+    CACHE.parent.mkdir(parents=True, exist_ok=True)
+    cache = {k: v for k, v in cache.items() if v.get('bis', 0) > time.time()}
+    cache[url] = {'url': result['url'], 'bis': time.time() + 6 * 3600}
+    temp = CACHE.with_suffix('.tmp')
+    temp.write_text(json.dumps(cache), encoding='utf-8')
+    temp.chmod(0o600)
+    temp.replace(CACHE)
 
 
 async def aufloesen(url, workspace):
@@ -39,6 +56,18 @@ async def aufloesen(url, workspace):
     if hit and hit['bis'] > time.time():
         status('cache', 'Gespeicherte Freigabe gefunden. Die Sicherheitsprüfung entfällt.')
         return {'ok': True, 'url': hit['url'], 'cached': True}
+
+    if MODUS == '2captcha':
+        from captcha_api import CaptchaFehler, freigeben
+        try:
+            result = await freigeben(url, KEYDATEI, status)
+        except CaptchaFehler as fehler:
+            return {'ok': False, 'fehler': str(fehler)}
+        status('hoster', '2Captcha-Freigabe erfolgreich. Der Videolink wird für sechs Stunden gespeichert.')
+        cache_speichern(url, result)
+        return result
+    if MODUS != 'lokal':
+        return {'ok': False, 'fehler': 'Ungültige Einstellung für ANBIETER_CAPTCHA.'}
 
     status('modell', 'Die lokale Bilderkennung wird vorbereitet.')
     os.chdir(PROJECT)
@@ -131,27 +160,22 @@ async def aufloesen(url, workspace):
     if not result:
         return {'ok': False, 'fehler': 'Die Sicherheitsprüfung beim Anbieter konnte nicht automatisch abgeschlossen werden. Bitte erneut versuchen.'}
     status('hoster', 'Sicherheitsprüfung abgeschlossen. Der freigegebene Link wird gespeichert.')
-    CACHE.parent.mkdir(parents=True, exist_ok=True)
-    cache = {k: v for k, v in cache.items() if v.get('bis', 0) > time.time()}
-    cache[url] = {'url': result['url'], 'bis': time.time() + 6 * 3600}
-    temp = CACHE.with_suffix('.tmp')
-    temp.write_text(json.dumps(cache), encoding='utf-8')
-    temp.chmod(0o600)
-    temp.replace(CACHE)
+    cache_speichern(url, result)
     return result
 
 
 async def versuchen(url, workspace):
     global VERSUCH
-    for VERSUCH in range(1, 4):
-        status('browser', f'Freigabeversuch {VERSUCH} von 3 startet.', versuchSeit=int(time.time() * 1000), versuchLimit=180)
+    for VERSUCH in range(1, MAX_VERSUCHE + 1):
+        limit = 270 if MODUS == '2captcha' else 180
+        status('browser', f'Freigabeversuch {VERSUCH} von {MAX_VERSUCHE} startet.', versuchSeit=int(time.time() * 1000), versuchLimit=limit)
         try:
-            result = await asyncio.wait_for(aufloesen(url, workspace), timeout=180)
+            result = await asyncio.wait_for(aufloesen(url, workspace), timeout=limit)
             if result['ok']:
                 return result
         except asyncio.TimeoutError:
             result = {'ok': False, 'fehler': 'Zeitlimit bei der Anbieter-Freigabe'}
-        if VERSUCH < 3:
+        if VERSUCH < MAX_VERSUCHE:
             status('wiederholung', 'Der Versuch war nicht erfolgreich. Ein neuer Versuch wird vorbereitet.')
             await asyncio.sleep(3)
     return result

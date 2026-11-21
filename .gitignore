@@ -3,4 +3,5 @@ ergebnis.png
 node_modules/
 daten/
 .anbieter/
+.2captcha-key
 __pycache__/

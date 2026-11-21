@@ -418,6 +418,7 @@
     browser: ['Browser starten', 'Der Server bereitet die Verbindung zum Anbieter vor.', 'browser'],
     anbieter: ['Anbieter öffnen', 'Die Anbieter-Seite wird geladen. Das dauert normalerweise wenige Sekunden.', 'browser'],
     pruefung: ['Sicherheitsprüfung läuft', 'Google kann mehrere Bilderrunden verlangen. Die Restdauer ist nicht zuverlässig vorhersagbar.', 'pruefung'],
+    captcha_api: ['2Captcha löst die Sicherheitsprüfung', 'Ein Lösungsauftrag ohne automatische Wiederholung. Die Dauer hängt von 2Captcha ab; danach wird die Videoquelle geladen.', 'pruefung'],
     wiederholung: ['Freigabe wird erneut versucht', 'Der vorige Versuch war nicht erfolgreich. Maximal drei Versuche, jeweils bis zu drei Minuten.', 'pruefung'],
     hoster: ['Videolink freigegeben', 'Die Sicherheitsprüfung ist abgeschlossen.', 'pruefung'],
     video: ['Videoquelle ermitteln', 'Der Anbieter-Player wird geöffnet. Das dauert meist einige Sekunden, bei langsamen Quellen bis zu etwa einer Minute.', 'video'],
@@ -435,7 +436,7 @@
     $('ladeGesamt').textContent = zeit(((prozess.geladenAm || jetzt) - prozess.begonnen) / 1000);
     $('ladeGesamtLabel').textContent = prozess.geladenAm ? 'Erste Vorbereitung' : 'Verstrichen';
     $('ladePhase').textContent = zeit((jetzt - prozess.phaseSeit) / 1000);
-    const pruefung = ['pruefung', 'wiederholung'].includes(prozess.phase);
+    const pruefung = ['pruefung', 'captcha_api', 'wiederholung'].includes(prozess.phase);
     $('ladeVersuch').hidden = !pruefung || !prozess.versuch;
     if (pruefung) {
       const rest = Math.max(0, (prozess.versuchLimit || 180) - (jetzt - prozess.versuchSeit) / 1000);

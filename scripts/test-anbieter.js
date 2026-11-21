@@ -29,6 +29,7 @@ async function main() {
     }
     browser = await (process.env.TEST_BROWSER === 'webkit' ? webkit : chromium).launch();
     for (const breite of [320, 390, 412, 768, 1440]) for (const farbe of ['light', 'dark']) {
+      const apiModus = farbe === 'dark';
       const context = await browser.newContext({ viewport: { width: breite, height: 850 }, hasTouch: breite < 768, colorScheme: farbe });
       const fehler = [];
       context.on('page', (p) => p.on('pageerror', (e) => fehler.push(e.message)));
@@ -44,8 +45,8 @@ async function main() {
         anfragen++;
         const jetzt = Date.now();
         if (!videoFreigegeben) return r.fulfill({ status: 202, json: { ok: false, wartend: true, fortschritt: {
-          phase: pruefungFreigegeben ? 'pruefung' : 'warteschlange', vorDir: 1,
-          detail: 'Bilder werden geprüft', versuch: 2, maxVersuche: 3, runde: 4, versuchSeit: jetzt - 20000, versuchLimit: 180,
+          phase: pruefungFreigegeben ? (apiModus ? 'captcha_api' : 'pruefung') : 'warteschlange', vorDir: 1,
+          detail: apiModus ? '2Captcha bearbeitet die Sicherheitsprüfung' : 'Bilder werden geprüft', versuch: apiModus ? 1 : 2, maxVersuche: apiModus ? 1 : 3, runde: apiModus ? null : 4, versuchSeit: jetzt - 20000, versuchLimit: 180,
           begonnen: jetzt - 64000, phaseSeit: jetzt - 20000, aktualisiert: jetzt, serverZeit: jetzt,
           verlauf: [{ phase: 'cache', zeit: jetzt - 64000, detail: 'Noch keine Freigabe' }, { phase: 'pruefung', zeit: jetzt - 20000, detail: 'Bilder werden geprüft' }],
         } } });
@@ -68,8 +69,8 @@ async function main() {
       const tab = await neuerTab;
       await tab.locator('#ladeDetail').filter({ hasText: '1 Freigabe vor dir' }).waitFor();
       pruefungFreigegeben = true;
-      await tab.locator('#ladeTitel').filter({ hasText: 'Sicherheitsprüfung läuft' }).waitFor();
-      assert.match(await tab.locator('#ladeVersuch').textContent(), /Versuch 2 von 3 · Bildrunde 4/);
+      await tab.locator('#ladeTitel').filter({ hasText: apiModus ? '2Captcha löst die Sicherheitsprüfung' : 'Sicherheitsprüfung läuft' }).waitFor();
+      assert.match(await tab.locator('#ladeVersuch').textContent(), apiModus ? /Versuch 1 von 1/ : /Versuch 2 von 3 · Bildrunde 4/);
       assert.match(await tab.locator('#ladeGesamt').textContent(), /^1:/);
       assert.equal(await tab.locator('[data-schritt="pruefung"]').getAttribute('data-status'), 'aktiv');
       assert.ok(await tab.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Statusanzeige ohne Überlauf');

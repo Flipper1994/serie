@@ -91,10 +91,13 @@ Der Weg zur Videoseite ist unten beschrieben.
 ### Vom Anbieter zur Videoseite
 
 Ein Anbieter-Klick öffnet `/video?url=…` in einem neuen Tab. Der Server gibt
-den Anbieter-Link mit Camoufox und lokalen Bildmodellen frei und reicht ihn
-an den bestehenden Video-Resolver weiter. Keine Erweiterung, kein Kopieren
-und kein kostenpflichtiger Captcha-Dienst. Die erste Freigabe kann mehrere
-Minuten dauern; erfolgreiche Hoster-Links bleiben sechs Stunden in
+den Anbieter-Link mit Camoufox und 2Captcha frei und reicht ihn
+an den bestehenden Video-Resolver weiter. Keine Erweiterung und kein Kopieren.
+Bei hinterlegtem Schlüssel wird pro neuer Freigabe genau ein kostenpflichtiger
+Lösungsauftrag erstellt; nur dessen Ergebnis wird alle fünf Sekunden abgefragt.
+Es gibt keine automatische Wiederholung bei Fehlern, unklaren Netzwerkantworten
+oder Zeitüberschreitung. Das API-Zeitlimit beträgt 180 Sekunden. Erfolgreiche
+Hoster-Links bleiben sechs Stunden in
 `daten/anbieter.json`. Eine Freigabe läuft gleichzeitig, gleiche Anfragen
 teilen sich die Aufgabe. `/stream` antwortet währenddessen mit 202; die
 Videoseite fragt den Stand erneut ab, ohne lange Proxy-Verbindungen.
@@ -107,7 +110,7 @@ Laden der Videodaten, die Bereitschaft zum Abspielen und späteres Puffern
 haben eigene Statusmeldungen.
 
 Gespeicherte Freigaben werden direkt vor der Warteschlange gelesen und
-überspringen den Browser samt Bilderkennung. Nach einer neuen Freigabe wird
+überspringen den Browser samt Captcha-Dienst. Nach einer neuen Freigabe wird
 der Platz für die nächste Sicherheitsprüfung sofort frei, während die
 vorherige Videoquelle bereits ermittelt wird.
 
@@ -115,8 +118,18 @@ Einrichtung als Dienstbenutzer (Python 3, Git, curl und Xvfb vorausgesetzt):
 
     sudo -u serie bash deploy/install-anbieter.sh
 
+Der 2Captcha-Schlüssel liegt ausschließlich in `.2captcha-key` im Projektordner,
+mit Dateirechten `600` und Besitzer `serie`. Diese Datei ist von Git ausgeschlossen.
+Bei vorhandener Schlüsseldatei ist 2Captcha automatisch aktiv; `TWOCAPTCHA_KEY_FILE`
+kann einen anderen Pfad festlegen. `ANBIETER_CAPTCHA=lokal` wählt ausdrücklich
+den bisherigen lokalen Solver. Ohne Schlüsseldatei bleibt dieser der Standard.
+Es wird keine neue SDK-Abhängigkeit benötigt. Guthaben- und Zugangsfehler erscheinen
+im Player; es gibt keinen automatischen Wechsel zu einem weiteren Lösungsauftrag.
+
 Alles liegt isoliert unter `.anbieter/` und im Browser-Cache des Dienstbenutzers.
-Das Skript ändert keine Systemkonfiguration. Verwendete Bausteine:
+Das Skript ändert keine Systemkonfiguration. Camoufox hält die Anbieter-Sitzung;
+`scripts/captcha_api.py` nutzt die offizielle 2Captcha-v2-API. Sitzungscookies
+und CSRF-Token bleiben beim Anbieter. Der optionale lokale Weg verwendet:
 [Camoufox](https://github.com/daijro/camoufox),
 [recaptcha_ia_solver](https://github.com/cateyelow/recaptcha_ia_solver) und
 [cf-solver](https://github.com/VeyraAgent/cf-solver), mit festgelegten Git-Ständen.
@@ -131,10 +144,15 @@ im normalen Videoelement abgespielt. Safari verwendet seine native HLS-Unterstü
 Ein physischer Chromecast benötigt eine gesonderte Abnahme im eigenen WLAN;
 Apple-Browser bieten nicht dieselbe Cast-Unterstützung wie Desktop-Chrome.
 
-Beide Seiten bieten ein responsives Layout, Hell-/Dunkelmodus, Safe-Area-Abstände,
+Beide Seiten bieten ein responsives dunkles Layout, Safe-Area-Abstände,
 Tastaturbedienung und Touch-Flächen von mindestens 44 px für die Anbieter-Knöpfe.
 
 Gezielte Prüfung ohne echte Captcha-Freigabe:
+
+    python scripts/test-captcha-api.py
+
+Diese API-Tests verwenden ausschließlich nachgebildete Antworten und prüfen
+Einmal-Aufträge, Fehler, Zeitlimits und Cache-Treffer ohne Kosten.
 
     node scripts/test-anbieter.js
     TEST_BROWSER=webkit node scripts/test-anbieter.js
