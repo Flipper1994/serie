@@ -38,7 +38,7 @@ Das Skript gibt JSON auf stdout aus.
 | 1 | Serie oder Staffel fehlt, falscher Aufruf | `fehler` nennen; `aehnlicheTreffer`, `kandidaten` oder `staffeln` als Auswahl anbieten |
 | 2 | Technischer Fehler (Seite nicht erreichbar, Aufbau geändert) | einmal wiederholen, dann melden |
 
-Bei Erfolg stehen die Folgen in `staffel.folgen` (Nummer, Titel), die
+Bei Erfolg stehen die Folgen in `staffel.folgen` (Nummer, Titel, Anbieter), die
 Seriendaten in `serie`, und `folge` sagt bei angegebener Folge, ob es sie gibt.
 
 ## Antwort an den Nutzer

@@ -9,8 +9,8 @@
 // Rückgabe: 0 bei Erfolg, 1 bei fachlichem Fehler (Serie/Staffel fehlt,
 //           falscher Aufruf), 2 bei technischem Fehler (Seite nicht erreichbar).
 //
-// Das Skript endet bewusst auf der Staffelübersicht. Es öffnet keine
-// Episodenseite; die Anbieter-Links kommen aus Zelle 2 der Folgentabelle.
+// Gelesen wird die Staffelübersicht; die Anbieter-Links je Folge stehen dort
+// in Zelle 2 der Folgentabelle.
 
 const path = require('path');
 const fs = require('fs');

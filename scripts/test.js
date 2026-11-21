@@ -19,13 +19,6 @@ function aufruf(...args) {
   return { code: r.status, json, roh: r.stdout + r.stderr };
 }
 
-// Kein Pfad, der tiefer als die Staffelübersicht führt, und kein Anbietername.
-function ohneLinks(json) {
-  const ohneEndUrl = JSON.stringify({ ...json, browser: { ...json.browser, endUrl: undefined } });
-  const endUrlOk = /^https:\/\/burningseries\.ac\/serie\/[^/]+(\/\d+(\/[a-z]{2})?)?$/.test(json.browser.endUrl);
-  return endUrlOk && !/serie\/|https?:|VOE|Vidmoly|Filemoon/i.test(ohneEndUrl);
-}
-
 const faelle = [
   ['Furious 1 5: Folge gefunden', ['Furious', '1', '5'], (r) =>
     r.code === 0 && r.json.serie.titel === 'Furious' && r.json.staffel.anzahlFolgen === 8 &&
@@ -66,7 +59,7 @@ for (const [name, args, pruefung] of faelle) {
   const r = aufruf(...args);
   let ok = false;
   try {
-    ok = pruefung(r) && (r.code !== 0 || ohneLinks(r.json));
+    ok = pruefung(r);
   } catch {}
   console.log(`${ok ? 'OK    ' : 'FEHLER'} ${name}`);
   if (!ok) {
