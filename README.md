@@ -1,10 +1,11 @@
-# serie
+# FlipperFlix
 
 Skill „serien-katalog“ für Claude: liest per Headless-Browser (Playwright) die
 Staffelübersicht einer Serie auf burningseries.ac aus – Titel, Beschreibung,
 Besetzung, Sprachen, Staffeln und je Folge Nummer, Titel und Anbieter-Links.
-Die Weboberfläche dient zugleich als Serien-Register: Gesehene Folgen lassen
-sich abhaken.
+Die Weboberfläche FlipperFlix bietet eine dunkle Streaming-Ansicht mit
+„Weiterschauen“, „Meine Serien“ und „Meine Liste“. Gesehene Folgen lassen sich
+abhaken; Serien können auch vor der ersten gesehenen Folge vorgemerkt werden.
 
 ## Als Skill installieren
 
@@ -38,8 +39,15 @@ ohne Token. Es läuft immer nur ein Browser gleichzeitig; Ergebnisse bleiben
 `GET /` liefert die Oberfläche (`public/index.html`): Suche nach einer Serie,
 Staffel-Leiste, Folgenliste mit Anbietern, Sprachen und „Über die Serie“. Jede
 Folge hat einen Haken für „gesehen“, dazu gibt es „Ganze Staffel gesehen“ und
-einen Zähler. Die Startseite „Meine Serien“ zeigt alle Serien mit Haken samt
-letztem Stand; ein Klick öffnet die Staffel, bei der es weitergeht.
+einen Zähler. Die Startseite zeigt „Weiterschauen“ und vorgemerkte Serien.
+„Meine Serien“ öffnet die gesamte Sammlung. Ein Klick auf eine begonnene Serie
+öffnet die Staffel und markiert die nächste ungesehene Folge. Der Fortschritt
+beruht auf den Haken, es werden keine Wiedergabeminuten erfasst.
+
+„+ Meine Liste“ merkt eine Serie ohne gesehene Folgen vor. Das Entfernen aus
+der Liste erhält vorhandene Haken. Liste und Gesehen-Stand gelten auf allen
+Geräten. Es gibt einen gemeinsamen Bestand ohne Benutzerkonten; der bisherige
+Token-Zugang bleibt bestehen. Katalog und Player nutzen `public/flipperflix.css`.
 
 Die Oberfläche fragt beim ersten Aufruf das Token ab und merkt es sich im
 Browser; ein Link mit `#token=<Token>` setzt es direkt, „Zugangslink kopieren“
@@ -50,10 +58,15 @@ Das Register liegt auf dem Server in `daten/gesehen.json` (Ordner änderbar mit
 `DATEN_ORDNER`) und gilt damit auf allen Geräten. Die Datei gehört nicht zum
 Repo; für eine Sicherung reicht es, sie zu kopieren.
 
-    GET  /gesehen     alle Serien mit abgehakten Folgen
+    GET  /gesehen     alle vorgemerkten oder begonnenen Serien
+    POST /gesehen     { "serie": "Furious", "merken": true }
     POST /gesehen     { "serie": "Furious", "staffel": 1, "folgen": [1, 2],
                         "gesehen": true, "anzahlFolgen": 8, "staffeln": ["1"] }
     POST /gesehen     { "serie": "Furious", "entfernen": true }
+
+`node scripts/test-flipperflix.js` prüft mit isoliertem Register die Liste,
+geräteübergreifendes Laden, den Erhalt der Haken und vier Bildschirmbreiten.
+Mit `TEST_BROWSER=webkit` läuft derselbe Test in WebKit.
 
 ### Stream-Resolver (direkte Video-URLs)
 

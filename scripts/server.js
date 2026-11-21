@@ -12,7 +12,8 @@
 //           ausgabe=kurz: flache Fassung für die Oberfläche (serie als Titel,
 //           folgen, staffeln, sprachen, beschreibung, infos).
 //           GET /health antwortet ohne Token und ohne Browserlauf.
-// Register: GET /gesehen liefert alle Serien mit abgehakten Folgen.
+// Register: GET /gesehen liefert alle vorgemerkten oder begonnenen Serien.
+//           POST /gesehen mit { serie, merken: true|false } ändert die Merkliste.
 //           POST /gesehen mit JSON { serie, staffel, folgen: [Nr, …],
 //           gesehen: true|false, anzahlFolgen?, staffeln? } hakt Folgen ab
 //           oder nimmt den Haken weg; { serie, entfernen: true } löscht eine
@@ -78,7 +79,7 @@ const MEDIEN_CORS = {
 // Die Videoseite lädt zusätzlich das Cast-SDK von Google und darf Medien einbinden.
 const VIDEO_KOPF = {
   'Content-Security-Policy':
-    "default-src 'none'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'unsafe-inline'; " +
+    "default-src 'none'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; " +
     "connect-src 'self'; worker-src 'self' blob:; media-src 'self' https: http: blob:; img-src 'self' data: https:; " +
     "base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
@@ -86,7 +87,7 @@ const VIDEO_KOPF = {
 };
 const SICHERHEITS_KOPF = {
   'Content-Security-Policy':
-    "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; " +
+    "default-src 'none'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; " +
     "img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
@@ -603,6 +604,14 @@ function registerAendern(eingabe) {
 
   if (eingabe.entfernen === true) {
     delete register.serien[schluessel];
+  } else if (Object.hasOwn(eingabe, 'merken')) {
+    if (typeof eingabe.merken !== 'boolean') return falsch('merken muss true oder false sein');
+    if (!register.serien[schluessel] && Object.keys(register.serien).length >= MAX_SERIEN) return falsch('Das Register ist voll');
+    const eintrag = register.serien[schluessel] || { titel, staffeln: [], gesehen: {} };
+    eintrag.merken = eingabe.merken;
+    eintrag.geaendert = new Date().toISOString();
+    if (eintrag.merken || Object.keys(eintrag.gesehen).length) register.serien[schluessel] = eintrag;
+    else delete register.serien[schluessel];
   } else {
     const { staffel, folgen, gesehen, anzahlFolgen, staffeln } = eingabe;
     if (!nummer(staffel)) return falsch('staffel muss eine ganze Zahl sein');
@@ -630,8 +639,8 @@ function registerAendern(eingabe) {
     if (s.folgen.length) eintrag.gesehen[staffel] = s;
     else delete eintrag.gesehen[staffel];
     eintrag.geaendert = new Date().toISOString();
-    // Ohne einen einzigen Haken verschwindet die Serie wieder aus dem Register.
-    if (Object.keys(eintrag.gesehen).length) register.serien[schluessel] = eintrag;
+    // Vorgemerkte Serien bleiben auch ohne gesehene Folge erhalten.
+    if (eintrag.merken || Object.keys(eintrag.gesehen).length) register.serien[schluessel] = eintrag;
     else delete register.serien[schluessel];
   }
 
@@ -698,6 +707,13 @@ const server = http.createServer(async (req, res) => {
   const schreibend = req.method === 'POST' && url.pathname === '/gesehen';
   if (req.method !== 'GET' && !schreibend) return antworten(res, 405, { ok: false, fehler: 'Nur GET ist erlaubt (POST nur auf /gesehen)' });
   if (url.pathname === '/health') return antworten(res, 200, { ok: true });
+  if (url.pathname === '/flipperflix.css') {
+    return fs.readFile(path.join(__dirname, '..', 'public', 'flipperflix.css'), (fehler, inhalt) => {
+      if (fehler) return antworten(res, 404, { ok: false });
+      res.writeHead(200, { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff' });
+      res.end(inhalt);
+    });
+  }
   if (url.pathname === '/vendor/hls.min.js') {
     return fs.readFile(path.join(__dirname, '..', 'public', 'vendor', 'hls.min.js'), (fehler, inhalt) => {
       if (fehler) return antworten(res, 404, { ok: false });

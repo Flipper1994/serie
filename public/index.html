@@ -4,9 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<meta name="color-scheme" content="light dark">
-<title>Serien-Katalog</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='6' width='26' height='18' rx='3' fill='%23087b69'/%3E%3Cpath d='M13 11v8l7-4z' fill='%23fff'/%3E%3Crect x='10' y='26' width='12' height='2' rx='1' fill='%23087b69'/%3E%3C/svg%3E">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0c0c0f">
+<meta name="apple-mobile-web-app-title" content="FlipperFlix">
+<title>FlipperFlix</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23151518'/%3E%3Cpath d='M10 7h15v5H15v4h8v5h-8v6h-5z' fill='%23ff495c'/%3E%3C/svg%3E">
 <style>
   /* ---------- Design-Tokens ---------- */
   :root {
@@ -527,13 +529,15 @@
     }
   }
 </style>
+<link rel="stylesheet" href="flipperflix.css">
 </head>
 <body>
 <div class="rahmen">
   <header>
-    <div><h1>serie<span>.</span></h1><p class="marken-zeile">Deine Serien. Dein Fortschritt.</p></div>
+    <div><a class="marke" href="./" aria-label="FlipperFlix Startseite"><h1>Flipper<span>Flix</span></h1></a><p class="marken-zeile">Dein Abend. Deine Serien.</p></div>
     <nav class="kopf-navigation" aria-label="Hauptnavigation">
       <button id="zurStartseite" class="knopf-text" type="button" hidden>Meine Serien</button>
+      <a href="#serie" id="zurSuche">Entdecken</a>
       <a href="video">Video öffnen ↗</a>
     </nav>
   </header>
@@ -552,7 +556,7 @@
   <section id="suchbereich" class="karte" hidden>
     <form id="suche" class="suche" autocomplete="off">
       <div class="serie-feld">
-        <label for="serie">Serie</label>
+        <label for="serie">Finde deine nächste Serie</label>
         <input id="serie" type="text" required maxlength="200" placeholder="z. B. Greys Anatomy" enterkeyhint="search">
       </div>
       <button id="los" class="knopf" type="submit">Suchen</button>
@@ -569,7 +573,7 @@
   </details>
 
   <footer>
-    <span class="leise">Staffel 0 = Specials</span>
+    <span class="leise">FlipperFlix · Dein persönlicher Serienabend</span>
     <span class="fuss-knoepfe">
       <a class="knopf-text" href="video">Video-Link abspielen</a>
       <button id="linkKopieren" class="knopf-text" type="button" hidden>Zugangslink kopieren</button>
@@ -723,6 +727,7 @@
   // Stand einer Serie: letzte gesehene Folge und die Staffel, bei der es weitergeht.
   function stand(eintrag) {
     const nummern = Object.keys(eintrag.gesehen).map(Number).sort((a, b) => a - b);
+    if (!nummern.length) return { anzahl: 0, weiterStaffel: 1, weiterFolge: null, fertig: false, prozent: 0 };
     const anzahl = nummern.reduce((summe, n) => summe + eintrag.gesehen[n].folgen.length, 0);
     const regulaer = nummern.filter((n) => n > 0);
     const letzteStaffel = regulaer.length ? regulaer[regulaer.length - 1] : nummern[nummern.length - 1];
@@ -733,6 +738,8 @@
     return {
       anzahl, letzteStaffel, letzteFolge, fertig,
       weiterStaffel: fertig && gibtNaechste && letzteStaffel > 0 ? letzteStaffel + 1 : letzteStaffel,
+      weiterFolge: fertig ? null : Array.from({ length: s.anzahlFolgen || letzteFolge + 1 }, (_, i) => i + 1).find((n) => !s.folgen.includes(n)) || null,
+      prozent: s.anzahlFolgen ? Math.min(100, s.folgen.length / s.anzahlFolgen * 100) : 0,
     };
   }
 
@@ -751,7 +758,7 @@
     for (const n of nummern) wert ? menge.add(n) : menge.delete(n);
     s.folgen = [...menge].sort((a, b) => a - b);
     if (s.folgen.length) eintrag.gesehen[staffel] = s; else delete eintrag.gesehen[staffel];
-    if (Object.keys(eintrag.gesehen).length) register.set(schluessel(titel), eintrag);
+    if (eintrag.merken || Object.keys(eintrag.gesehen).length) register.set(schluessel(titel), eintrag);
     else register.delete(schluessel(titel));
     speicherFehler = null;
     ergebnisZeigen({ scrollen: false });
@@ -797,19 +804,66 @@
   }
 
   // ---------- Startseite: Meine Serien ----------
-  async function startseiteZeigen({ verlauf = null } = {}) {
+  function serienKarte(e) {
+    const st = stand(e);
+    const ton = [...e.titel].reduce((summe, zeichen) => (summe * 31 + zeichen.charCodeAt(0)) % 360, 0);
+    const weiter = st.anzahl ? st.fertig ? 'Staffelübersicht öffnen' : `Weiter mit Staffel ${st.weiterStaffel}${st.weiterFolge ? ` · Folge ${st.weiterFolge}` : ''}` : 'Serie entdecken';
+    return el('button', {
+      type: 'button', class: 'serien-zeile',
+      'aria-label': `${e.titel}: ${weiter}`,
+      onclick: () => abfragen({ serie: e.titel, staffel: st.weiterStaffel, folge: st.weiterFolge }),
+    },
+      el('span', { class: 'serien-poster', style: `--ton:${ton}`, 'aria-hidden': 'true' },
+        el('span', { class: 'poster-marke' }, 'F'),
+        el('span', { class: 'poster-play' }, '▶'),
+        el('span', { class: 'poster-titel' }, e.titel.split('|')[0].replace(/\s*\(\d{4}.*$/, '').trim())),
+      el('span', { class: 'serien-inhalt' },
+        el('span', { class: 'serien-name' }, e.titel),
+        el('span', { class: 'serien-stand' }, st.anzahl ? `${st.anzahl} Folgen gesehen · zuletzt S${st.letzteStaffel} E${st.letzteFolge}` : 'Auf deiner Liste'),
+        st.anzahl ? el('span', { class: 'balken', 'aria-hidden': 'true' }, el('span', { class: 'balken-fuellung', style: `display:block;width:${st.prozent}%` })) : null,
+        el('span', { class: 'serien-weiter' }, weiter)));
+  }
+
+  function regal(titel, serien, leertext, id) {
+    return el('section', { class: 'regal', id },
+      el('div', { class: 'regal-kopf' }, el('h2', {}, titel), el('span', { class: 'leise-klein' }, `${serien.length} ${serien.length === 1 ? 'Serie' : 'Serien'}`)),
+      serien.length ? el('div', { class: 'serien-liste' }, serien.map(serienKarte)) : el('div', { class: 'leer' },
+        el('p', {}, leertext), el('button', { type: 'button', class: 'knopf-text', onclick: () => $('serie').focus() }, 'Serie suchen →')));
+  }
+
+  function merkenSetzen(wert, knopf) {
+    const d = aktuelleDaten;
+    const titel = d.serie.titel || d.anfrage.serie;
+    knopf.disabled = true;
+    knopf.textContent = 'Wird gespeichert …';
+    speicherKette = speicherKette.then(async () => {
+      try {
+        const { antwort, daten } = await dienst('gesehen', { method: 'POST', body: JSON.stringify({ serie: titel, merken: wert }) });
+        if (antwort.status === 401) return tokenAbgelehnt();
+        if (!antwort.ok || !daten || !daten.ok) throw new Error();
+        if (daten.serie) register.set(schluessel(titel), daten.serie);
+        else register.delete(schluessel(titel));
+        speicherFehler = null;
+      } catch { speicherFehler = 'Deine Liste ließ sich nicht speichern. Bitte erneut versuchen.'; }
+      if (aktuelleDaten === d) ergebnisZeigen({ scrollen: false });
+    });
+  }
+
+  async function startseiteZeigen({ verlauf = null, sammlung = false } = {}) {
     if (laufendeAbfrage) laufendeAbfrage.abort();
+    laufendeAbfrage = null;
+    $('los').disabled = false;
     aktuelleDaten = null;
     $('serie').value = '';
     if (verlauf && location.search) history.pushState(null, '', location.pathname);
-    document.title = 'Serien-Katalog';
+    document.title = 'FlipperFlix · Dein Abend. Deine Serien.';
 
     if (!registerGeladen) {
       zeigeAusgabe(el('section', { class: 'karte lade', 'aria-live': 'polite' },
         el('div', { class: 'kreisel', 'aria-hidden': 'true' }),
         el('div', { class: 'lade-text' }, 'Lade dein Register …')));
       await (registerBereit || registerLaden());
-      if (aktuelleDaten || laufendeAbfrage || !tokenLesen()) return;
+      if ($('zugang').hidden === false || aktuelleDaten || laufendeAbfrage || !tokenLesen()) return;
     }
     if (!registerGeladen) {
       return zeigeAusgabe(el('section', { class: 'karte fehler-karte', role: 'alert' },
@@ -822,26 +876,23 @@
     }
 
     const serien = [...register.values()].sort((a, b) => String(b.geaendert).localeCompare(String(a.geaendert)));
-    const teile = [el('h2', { class: 'titel klein' }, 'Meine Serien')];
-    if (!serien.length) {
-      teile.push(el('p', { class: 'leise' },
-        'Noch nichts abgehakt. Suche oben eine Serie und hake die Folgen ab, die du gesehen hast.'));
-    } else {
-      teile.push(el('div', { class: 'serien-liste' }, serien.map((e) => {
-        const st = stand(e);
-        return el('button', {
-          type: 'button', class: 'serien-zeile',
-          onclick: () => abfragen({ serie: e.titel, staffel: st.weiterStaffel, folge: null }),
-        },
-          el('span', { class: 'serien-name' }, e.titel),
-          el('span', { class: 'serien-stand' },
-            `Zuletzt: ${staffelName(st.letzteStaffel, e.staffeln)}, Folge ${st.letzteFolge}`,
-            st.fertig ? ' · Staffel komplett' : '',
-            el('span', { class: 'trenner' }, '·'),
-            `${st.anzahl} gesehen`));
-      })));
-    }
-    zeigeAusgabe(el('section', { class: 'karte' }, ...teile));
+    const begonnen = serien.filter((e) => stand(e).anzahl > 0);
+    const featured = begonnen[0];
+    const st = featured && stand(featured);
+    const teile = [];
+    if (!sammlung) teile.push(el('section', { class: 'kino' }, el('div', { class: 'kino-text' },
+      el('p', { class: 'augenbraue' }, featured ? 'Dein nächster Serienabend' : 'Willkommen bei FlipperFlix'),
+      el('h2', {}, featured ? featured.titel.split('|')[0].replace(/\s*\(\d{4}.*$/, '').trim() : 'Große Geschichten.\nDein Bildschirm.'),
+      el('p', {}, featured ? `${st.anzahl} Folgen gesehen. Deine Serien warten auf dich.` : 'Finde deine Lieblingsserien, sammle sie auf deiner Liste und behalte im Blick, wo es weitergeht.'),
+      el('div', { class: 'kino-aktionen' },
+        el('button', { type: 'button', class: 'knopf', onclick: () => featured ? abfragen({ serie: featured.titel, staffel: st.weiterStaffel, folge: st.weiterFolge }) : $('serie').focus() }, featured ? '▶ Weiterschauen' : 'Serien entdecken'),
+        el('button', { type: 'button', class: 'knopf sekundaer', onclick: () => $('meine-serien').scrollIntoView({ behavior: 'smooth', block: 'start' }) }, 'Meine Serien')))));
+    const sammlungTeile = [];
+    if (!sammlung && begonnen.length) sammlungTeile.push(regal('Weiterschauen', begonnen, '', 'weiterschauen'));
+    if (sammlung || !serien.length) sammlungTeile.push(regal('Meine Serien', serien, 'Deine Sammlung beginnt mit einer Serie. Suche einen Titel und tippe auf „Meine Liste“.', 'sammlung'));
+    if (!sammlung && serien.length) sammlungTeile.push(regal('Meine Liste', serien.filter((e) => e.merken), 'Merke dir Serien mit „+ Meine Liste“ auf der Serienseite vor.', 'meine-liste'));
+    teile.push(el('div', { id: 'meine-serien' }, ...sammlungTeile));
+    zeigeAusgabe(el('div', { class: 'start-ansicht' }, ...teile));
   }
 
   // ---------- Adresszeile ----------
@@ -909,8 +960,8 @@
       $('los').disabled = false;
       return fehlerZeigen('Keine Verbindung', 'Der Dienst ist gerade nicht erreichbar. Bitte gleich noch einmal versuchen.', anfrage);
     } finally {
+      clearInterval(uhr);
       if (laufendeAbfrage === abbruch) {
-        clearInterval(uhr);
         $('los').disabled = false;
         laufendeAbfrage = null;
       }
@@ -1021,18 +1072,22 @@
     const gesehen = gesehenMenge(serieTitel, d.staffel.nummer);
     const anzahlGesehen = folgen.filter((f) => gesehen.has(f.nummer)).length;
     const alleGesehen = folgen.length > 0 && anzahlGesehen === folgen.length;
-    document.title = `${serieTitel} – Serien-Katalog`;
+    document.title = `${serieTitel} – FlipperFlix`;
 
     // Beim Neuzeichnen nach einem Haken: Fokus behalten.
     const fokus = scrollen ? null : document.activeElement && document.activeElement.id;
 
     // Kopf
     const kopf = [
-      el('h2', { class: 'titel' }, serieTitel),
-      el('p', { class: 'meta' },
-        staffelName(d.staffel.nummer, d.serie.staffeln),
-        el('span', { class: 'trenner' }, '·'),
-        `${folgen.length} ${folgen.length === 1 ? 'Folge' : 'Folgen'}`),
+      el('div', { class: 'serien-kopf' },
+        el('div', {}, el('p', { class: 'augenbraue' }, 'FlipperFlix · Serien'),
+          el('h2', { class: 'titel' }, serieTitel),
+          el('p', { class: 'meta' },
+            staffelName(d.staffel.nummer, d.serie.staffeln),
+            el('span', { class: 'trenner' }, '·'),
+            `${folgen.length} ${folgen.length === 1 ? 'Folge' : 'Folgen'}`)),
+        el('button', { type: 'button', class: 'listen-knopf', 'aria-pressed': String(!!eintrag?.merken), disabled: !registerGeladen,
+          onclick: (e) => merkenSetzen(!eintrag?.merken, e.currentTarget) }, eintrag?.merken ? '✓ Auf meiner Liste' : '+ Meine Liste')),
     ];
     if (folgeNr !== null && !gesucht) {
       kopf.push(el('div', { class: 'treffer nein' },
@@ -1143,7 +1198,7 @@
           'Serie aus dem Register entfernen')));
     }
 
-    zeigeAusgabe(el('section', { class: 'karte' }, ...teile));
+    zeigeAusgabe(el('section', { class: 'karte detail-karte' }, ...teile));
 
     if (fokus && $(fokus)) $(fokus).focus({ preventScroll: true });
     // Wurde eine Folge über die Adresse angefragt, zu ihr scrollen.
@@ -1194,7 +1249,8 @@
     }
     setTimeout(() => { knopf.textContent = 'Zugangslink kopieren'; }, 4000);
   });
-  $('zurStartseite').addEventListener('click', () => startseiteZeigen({ verlauf: 'push' }));
+  $('zurStartseite').addEventListener('click', () => startseiteZeigen({ verlauf: 'push', sammlung: true }));
+  $('zurSuche').addEventListener('click', (e) => { e.preventDefault(); $('serie').focus(); });
 
   window.addEventListener('popstate', () => {
     if (!tokenLesen()) return;

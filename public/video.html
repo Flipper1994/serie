@@ -4,9 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<meta name="color-scheme" content="light dark">
-<title>Video-Link</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='6' width='26' height='18' rx='3' fill='%23087b69'/%3E%3Cpath d='M13 11v8l7-4z' fill='%23fff'/%3E%3Crect x='10' y='26' width='12' height='2' rx='1' fill='%23087b69'/%3E%3C/svg%3E">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0c0c0f">
+<title>FlipperFlix · Video</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23151518'/%3E%3Cpath d='M10 7h15v5H15v4h8v5h-8v6h-5z' fill='%23ff495c'/%3E%3C/svg%3E">
 <style>
   /* ---------- Design-Tokens ---------- */
   :root {
@@ -210,11 +211,12 @@
     *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
   }
 </style>
+<link rel="stylesheet" href="flipperflix.css">
 </head>
-<body>
+<body class="video-seite">
 <div class="rahmen">
   <header>
-    <div><h1>serie<span>.</span></h1><p class="marken-zeile">Dein Video. Dein Bildschirm.</p></div>
+    <div><a class="marke" href="./"><h1>Flipper<span>Flix</span></h1></a><p class="marken-zeile">Dein Video. Dein Bildschirm.</p></div>
     <a class="knopf-text" href="./">Zu den Serien</a>
   </header>
 
@@ -564,7 +566,7 @@
       video.src = aktuell.adresse;
       video.load();
     }
-    document.title = `${aktuell.titel} – Video-Link`;
+    document.title = `${aktuell.titel} – FlipperFlix`;
     if (fernVerbunden()) aufFernseherLaden(0);   // Fernseher läuft schon: dort weitermachen
     else video.play().catch(() => { /* ohne Fingertipp startet es nicht von selbst */ });
     $('ladeStatus').scrollIntoView({ behavior: 'smooth', block: 'start' });
