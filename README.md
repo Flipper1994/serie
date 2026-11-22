@@ -11,8 +11,16 @@ Die Adresse wird beim regulären Serienabruf als `serie.bild` mitgelesen und
 beim Besuch im Register gespeichert, ohne weitere Suche oder API-Schlüssel.
 Bilder laden erst bei Bedarf direkt von ihrer HTTPS-Quelle. Fehlende oder
 nicht erreichbare Cover lassen die bisherige Titelkarte stehen. Bereits
-gespeicherte Serien erhalten ihr Cover beim nächsten Öffnen; es gibt keinen
-zusätzlichen Massenabruf. Bilder bleiben von der Erreichbarkeit der Quelle abhängig.
+gespeicherte Serien erhalten ihr Cover beim nächsten Öffnen. Für einen einmaligen
+Nachtrag aller fehlenden Cover gibt es `scripts/cover-nachladen.js`; dabei bleiben
+Verlauf, Gesehen-Stand und Zeitstempel erhalten. Pro Seitenaufruf läuft kein
+zusätzlicher Massenabruf. Bilder bleiben von der Erreichbarkeit der Quelle abhängig.
+
+    API_TOKEN=… TEST_BASIS=https://flippercapital.duckdns.org/serie/ node scripts/cover-nachladen.js
+    API_TOKEN=… TEST_BASIS=https://flippercapital.duckdns.org/serie/ node scripts/test-cover-live.js
+
+Der Live-Test lädt die echte öffentliche Oberfläche bei 1440 und 390 Pixeln,
+prüft sichtbare Coverpixel, horizontale Überbreite und JavaScript-Fehler.
 
 ## Als Skill installieren
 
@@ -240,6 +248,29 @@ Serverprozess; der Medien-Proxy verwendet die passende Browserkennung und sendet
 Cookies nur an passende Domains/Pfade, auch nach Weiterleitungen. Die signierte
 Sitzungs-ID wird in HLS-Listen an Segmente und Schlüssel weitergegeben. Andere
 Hoster behalten ihren bisherigen yt-dlp-/Browserablauf und ihre Medienadressen.
+
+Optional kann ein gemeinsamer [Byparr-Browser](https://github.com/ThePhaseless/Byparr)
+mehrere Hoster auflösen. Er übernimmt Schutzseite, eingebettete Player-Prüfung und
+Videoextraktion in derselben Browsersitzung. Das vermeidet einen erneuten
+Seitenabruf mit anderer Browserkennung. Playmogo verwendet den Dienst direkt;
+andere Hoster verwenden ihn nach einem erfolglosen bisherigen Browserlauf.
+Ohne `VIDEO_SOLVER_URL` bleibt der bisherige Ablauf erhalten.
+
+Einrichtung auf dem vServer:
+
+    sudo bash deploy/install-video-solver.sh
+
+Das Skript startet einen eigenen Container `serie-video-browser`, ausschließlich
+unter `127.0.0.1:18194`, mit 1,5 GiB RAM-Limit und dem getesteten, per SHA256
+festgelegten Byparr-Image. Es ergänzt `VIDEO_SOLVER_URL` in der bestehenden
+Dienstkonfiguration und startet nur `serien-katalog` neu. Die vorherige
+Konfiguration bleibt als `.vor-video-solver` erhalten. Nach Änderungen an
+`deploy/byparr-video.py` das Einrichtungsskript erneut ausführen. Der HTTP-Client
+prüft die Antwort; Cookies und Browserkennung bleiben im Serverprozess.
+Bei aktiviertem Fallback gelten längere Antwortzeitlimits (Worker 210 s,
+Videoseite 240 s); ein vorgeschalteter Reverse-Proxy muss entsprechend lange
+Anfragen zulassen. Eine erfolgreiche Auflösung bedeutet keine allgemeine
+Garantie für alle Hoster: die konkrete Quelle wird mit dem folgenden E2E geprüft.
 
 **Live-E2E auf dem vServer**, nach dem Update und Neustart des Dienstes:
 
