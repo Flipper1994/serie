@@ -110,6 +110,17 @@ async function main() {
     }
     await post({ serie: 'Cover bleibt', besucht, bild: katalog.serie.bild });
     assert.equal((await post({ serie: 'Cover bleibt', besucht, bild: null })).serie.bild, katalog.serie.bild);
+    await post({ serie: 'Altbestand', besucht, staffeln: ['1', '2'] });
+    await post({ serie: 'Altbestand', merken: true });
+    const vorher = (await post({ serie: 'Altbestand', staffel: 1, folgen: [1], gesehen: true })).serie;
+    const coverNachtrag = await post({ serie: 'Altbestand', bild: katalog.serie.bild });
+    assert.equal(coverNachtrag.ok, true);
+    assert.deepEqual(coverNachtrag.serie, { ...vorher, bild: katalog.serie.bild });
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(ordner, 'gesehen.json'), 'utf8')).serien.altbestand, coverNachtrag.serie);
+    assert.equal((await post({ serie: 'Altbestand', bild: null })).ok, false);
+    assert.equal((await post({ serie: 'Noch nicht gespeichert', bild: katalog.serie.bild })).ok, false);
+    const ohneToken = await fetch(basis + 'gesehen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ serie: 'Altbestand', bild: katalog.serie.bild }) });
+    assert.equal(ohneToken.status, 401);
     console.log('Liste und Gesehen-Stand bleiben unabhängig erhalten.');
   } finally {
     if (browser) await browser.close();

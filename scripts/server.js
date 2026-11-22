@@ -649,6 +649,11 @@ function registerAendern(eingabe) {
     eintrag.geaendert = new Date().toISOString();
     if (eintrag.merken || eintrag.besucht || Object.keys(eintrag.gesehen).length) register.serien[schluessel] = eintrag;
     else delete register.serien[schluessel];
+  } else if (Object.hasOwn(eingabe, 'bild') && Object.keys(eingabe).every((k) => ['serie', 'bild'].includes(k))) {
+    // Einmaliges Nachtragen alter Cover verändert weder Verlauf noch Fortschritt.
+    if (!bild) return falsch('Coveradresse fehlt');
+    if (!vorher) return { status: 404, inhalt: { ok: false, fehler: 'Serie ist nicht im Register' } };
+    register.serien[schluessel].bild = bild;
   } else {
     const { staffel, folgen, gesehen, anzahlFolgen } = eingabe;
     if (!nummer(staffel)) return falsch('staffel muss eine ganze Zahl sein');
