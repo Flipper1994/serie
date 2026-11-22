@@ -101,6 +101,15 @@ async function uebersichtLesen(page) {
     const kopf = wurzel.querySelector('#sp_left h2');
     const zusatz = text(kopf.querySelector('small')) || '';
     const titel = text(kopf).slice(0, text(kopf).length - zusatz.length).trim();
+    // Das vorhandene Seriencover im selben Abruf mitlesen, keine Bildersuche.
+    const bildElement = wurzel.querySelector('#sp_right img, .series-cover img, .cover img, img[src*="/cover/"]');
+    const bildQuelle = bildElement?.getAttribute('data-src') || bildElement?.getAttribute('src') ||
+      document.querySelector('meta[property="og:image"]')?.getAttribute('content');
+    let bild = null;
+    try {
+      const adresse = new URL(bildQuelle, document.baseURI);
+      if (bildQuelle && adresse.protocol === 'https:' && !adresse.username && !adresse.password) bild = adresse.href;
+    } catch { /* Fehlendes Cover verhindert keine Katalogabfrage. */ }
 
     const infos = {};
     for (const block of wurzel.querySelectorAll('.infos > div')) {
@@ -131,6 +140,7 @@ async function uebersichtLesen(page) {
 
     return {
       titel,
+      bild,
       beschreibung: text(wurzel.querySelector('#sp_left > p')),
       infos,
       sprachen: [...wurzel.querySelectorAll('select.series-language option')].map((o) => text(o)),
@@ -177,6 +187,7 @@ async function lauf({ name, staffel, folge, ausgabe }) {
       anfrage: { serie: name, staffel, folge },
       serie: {
         titel: daten.titel,
+        bild: daten.bild,
         beschreibung: daten.beschreibung,
         infos: daten.infos,
         sprachen: daten.sprachen,
@@ -201,7 +212,7 @@ async function lauf({ name, staffel, folge, ausgabe }) {
   }
 }
 
-(async () => {
+if (require.main === module) (async () => {
   try {
     const ergebnis = await lauf(argumenteLesen(process.argv.slice(2)));
     console.log(JSON.stringify(ergebnis, null, 2));
@@ -212,3 +223,5 @@ async function lauf({ name, staffel, folge, ausgabe }) {
     process.exitCode = fachlich ? 1 : 2;
   }
 })();
+
+module.exports = { uebersichtLesen };

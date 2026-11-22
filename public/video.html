@@ -508,7 +508,7 @@
     video.pause();
     prozessStarten();
     const istAnbieter = /^https:\/\/(www\.)?burningseries\.ac(\/|$)/i.test(link);
-    const antwortZeitlimit = istAnbieter ? 15000 : 80000;
+    const antwortZeitlimit = istAnbieter ? 15000 : 240000;
     if (!istAnbieter) prozessZeigen({ phase: 'video', detail: 'Der Server ermittelt die abspielbare Quelle zu diesem Link.' });
     const knopf = $('oeffnen');
     knopf.disabled = true;

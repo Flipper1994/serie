@@ -92,7 +92,7 @@ const VIDEO_KOPF = {
 const SICHERHEITS_KOPF = {
   'Content-Security-Policy':
     "default-src 'none'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; " +
-    "img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "img-src 'self' data: https:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
 };
@@ -158,6 +158,7 @@ function kuerzen(daten) {
   return {
     serie: daten.serie.titel,
     beschreibung: daten.serie.beschreibung,
+    bild: daten.serie.bild || null,
     infos: daten.serie.infos,
     staffel: daten.staffel.nummer,
     anzahlFolgen: daten.staffel.anzahlFolgen,
@@ -260,7 +261,7 @@ function browserLauf(videoUrl) {
   return new Promise((fertig) => {
     execFile(
       process.execPath, [VIDEO_SKRIPT, videoUrl],
-      { timeout: 70000, maxBuffer: 1024 * 1024, env: { ...process.env, MEDIEN_AGENT } },
+      { timeout: process.env.VIDEO_SOLVER_URL ? 210000 : 70000, maxBuffer: 1024 * 1024, env: { ...process.env, MEDIEN_AGENT } },
       (fehler, stdout) => {
         let d = null;
         try { d = JSON.parse(stdout); } catch { /* unten behandelt */ }
@@ -269,7 +270,7 @@ function browserLauf(videoUrl) {
         fertig({
           ok: true, mp4: d.url, titel: String(d.titel || '').slice(0, 200),
           art: d.art === 'hls' ? 'hls' : 'datei', referer: String(d.referer || '').slice(0, 2048),
-          sitzung: istPlaymogo(videoUrl) ? medienSitzung.anlegen(d, MEDIEN_GUELTIG_MS) : '',
+          sitzung: istPlaymogo(videoUrl) || d.resolver === 'byparr' ? medienSitzung.anlegen(d, MEDIEN_GUELTIG_MS) : '',
         });
       },
     );
@@ -613,6 +614,14 @@ function registerAendern(eingabe) {
   if (['__proto__', 'constructor', 'prototype'].includes(schluessel)) return falsch('Ungültiger Serientitel');
   const vorher = Object.hasOwn(register.serien, schluessel) ? JSON.stringify(register.serien[schluessel]) : null;
   const { staffeln } = eingabe;
+  let bild;
+  if (eingabe.bild !== undefined && eingabe.bild !== null) {
+    try {
+      const adresse = new URL(eingabe.bild);
+      if (typeof eingabe.bild !== 'string' || eingabe.bild.length > 2048 || adresse.protocol !== 'https:' || adresse.username || adresse.password) return falsch('Ungültige Coveradresse');
+      bild = adresse.href;
+    } catch { return falsch('Ungültige Coveradresse'); }
+  }
   if (staffeln !== undefined && !(Array.isArray(staffeln) && staffeln.length <= 300 &&
       staffeln.every((s) => typeof s === 'string' && s.length <= 60))) return falsch('staffeln muss eine Liste kurzer Texte sein');
   if (!vorher && eingabe.entfernen !== true && Object.keys(register.serien).length >= MAX_SERIEN) return falsch('Das Register ist voll');
@@ -626,6 +635,7 @@ function registerAendern(eingabe) {
         !Array.isArray(b.folgen) || b.folgen.length > 2000 || !b.folgen.every(nummer)) return falsch('Ungültiger Serienbesuch');
     const eintrag = register.serien[schluessel] || { titel, staffeln: [], gesehen: {} };
     if (staffeln) eintrag.staffeln = staffeln;
+    if (bild) eintrag.bild = bild;
     const jetzt = new Date().toISOString();
     eintrag.besucht = { staffel: b.staffel, folge: b.folge ?? null, zeit: jetzt };
     eintrag.katalog = { ...eintrag.katalog, [b.staffel]: [...new Set(b.folgen)].sort((a, b) => a - b) };

@@ -28,7 +28,7 @@ async function main() {
   const preload = path.join(temp, 'transport.cjs');
   fs.writeFileSync(preload, `const https=require('node:https'),http=require('node:http');
 https.request=(url,opts,cb)=>http.request(new URL(url.pathname+url.search,'http://127.0.0.1:${upstreamPort}'),{...opts,headers:{...opts.headers,'x-test-host':url.hostname}},cb);`);
-  fs.writeFileSync(path.join(scripts, 'video-link.js'), `const hls=process.argv[2].includes('/hls');console.log(JSON.stringify({ok:true,url:'https://media.playmogo.com/'+(hls?'master.m3u8':'start'),art:hls?'hls':'datei',referer:'https://playmogo.com/e/test',userAgent:'Sitzungsbrowser',cookies:[{name:'clearance',value:'geheim',domain:'.playmogo.com',path:'/',secure:true,expires:-1}]}));`);
+  fs.writeFileSync(path.join(scripts, 'video-link.js'), `const hls=process.argv[2].includes('/hls');console.log(JSON.stringify({ok:true,url:'https://media.playmogo.com/'+(hls?'master.m3u8':'start'),art:hls?'hls':'datei',referer:'https://playmogo.com/e/test',userAgent:'Sitzungsbrowser',resolver:process.argv[2].includes('/solver')?'byparr':undefined,cookies:[{name:'clearance',value:'geheim',domain:'.playmogo.com',path:'/',secure:true,expires:-1}]}));`);
   const frei = http.createServer(); await new Promise((r) => frei.listen(0, '127.0.0.1', r));
   const port = frei.address().port; await new Promise((r) => frei.close(r));
   const basis = `http://127.0.0.1:${port}/`;
@@ -71,6 +71,14 @@ https.request=(url,opts,cb)=>http.request(new URL(url.pathname+url.search,'http:
     const r = await fetch(new URL(alt.medien, basis)); assert.equal(r.status, 206); await r.arrayBuffer();
     assert.equal(abrufe.at(-2).cookie, undefined);
     assert.notEqual(abrufe.at(-2).ua, 'Sitzungsbrowser');
+    const gemeinsam = await stream('https://anderer-hoster.test/e/solver');
+    assert.ok(new URL(gemeinsam.medien, basis).searchParams.get('sid'), 'Gemeinsamer Solver erhält für alle Hoster eine Sitzung');
+    assert.ok(!JSON.stringify(gemeinsam).includes('geheim') && !gemeinsam.cookies && !gemeinsam.userAgent);
+    const solverVideo = await fetch(new URL(gemeinsam.medien, basis), { headers: { Range: 'bytes=0-299' } });
+    assert.equal(solverVideo.status, 206); await solverVideo.arrayBuffer();
+    assert.equal(abrufe.at(-2).cookie, 'clearance=geheim');
+    assert.equal(abrufe.at(-2).ua, 'Sitzungsbrowser');
+    assert.equal(abrufe.at(-1).cookie, undefined, 'Auch Solver-Cookies bleiben auf ihre Domain begrenzt');
     console.log('OK: Proxy-Range, Cookies intern, Redirect-Domaingrenze, Browserkennung, Cache, signierte Sitzungs-ID, HLS-Schlüssel/Segmente und alter Hosterpfad');
   } finally {
     if (server.exitCode === null) { server.kill(); await new Promise((r) => server.once('exit', r)); }

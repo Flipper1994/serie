@@ -6,6 +6,13 @@ Besetzung, Sprachen, Staffeln und je Folge Nummer, Titel und Anbieter-Links.
 Die Weboberfläche FlipperFlix bietet eine dunkle Streaming-Ansicht mit
 „Weiterschauen“, „Meine Serien“ und „Meine Liste“. Gesehene Folgen lassen sich
 abhaken; Serien können auch vor der ersten gesehenen Folge vorgemerkt werden.
+Die Karten und Serienansichten zeigen das vorhandene Cover aus dem Katalog.
+Die Adresse wird beim regulären Serienabruf als `serie.bild` mitgelesen und
+beim Besuch im Register gespeichert, ohne weitere Suche oder API-Schlüssel.
+Bilder laden erst bei Bedarf direkt von ihrer HTTPS-Quelle. Fehlende oder
+nicht erreichbare Cover lassen die bisherige Titelkarte stehen. Bereits
+gespeicherte Serien erhalten ihr Cover beim nächsten Öffnen; es gibt keinen
+zusätzlichen Massenabruf. Bilder bleiben von der Erreichbarkeit der Quelle abhängig.
 
 ## Als Skill installieren
 

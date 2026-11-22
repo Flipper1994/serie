@@ -7,7 +7,7 @@ const { spawn } = require('node:child_process');
 const net = require('node:net');
 const { chromium, webkit } = require('playwright');
 const katalog = {
-  ok: true, serie: { titel: "Grey's Anatomy | Die jungen Aerzte (2005)", staffeln: ['1', '2'], sprachen: ['Deutsch'], beschreibung: 'Eine Serie über das Leben im Krankenhaus.', infos: {} },
+  ok: true, serie: { titel: "Grey's Anatomy | Die jungen Aerzte (2005)", bild: 'https://burningseries.ac/public/img/cover/test.png', staffeln: ['1', '2'], sprachen: ['Deutsch'], beschreibung: 'Eine Serie über das Leben im Krankenhaus.', infos: {} },
   staffel: { nummer: 1, folgen: [1, 2, 3].map((nummer) => ({ nummer, titel: `Folge ${nummer}`, hoster: [{ title: 'VOE', href: `https://burningseries.ac/serie/Test/1/${nummer}-Test/de/VOE` }] })) },
 };
 async function main() {
@@ -35,6 +35,8 @@ async function main() {
       context.on('page', (p) => p.on('pageerror', (e) => errors.push(e.message)));
       await context.addInitScript(() => { try { localStorage.setItem('serienKatalog.token', 'test'); } catch {} });
       await context.route('**/katalog?**', (r) => r.fulfill({ json: katalog }));
+      const coverRoute = (r) => r.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64') });
+      await context.route(katalog.serie.bild, coverRoute);
       const page = await context.newPage();
       await page.goto(basis);
       await page.locator('.kino').waitFor();
@@ -43,6 +45,7 @@ async function main() {
       await page.locator('#serie').fill('Greys anatomy');
       await page.locator('#los').click();
       await page.locator('.listen-knopf').waitFor();
+      await page.waitForFunction(() => document.querySelector('.detail-cover')?.naturalWidth > 0);
       const speichern = page.waitForResponse((r) => r.url().endsWith('/gesehen') && r.request().method() === 'POST' && r.request().postDataJSON()?.merken === true);
       await page.locator('.listen-knopf').click();
       assert.equal((await (await speichern).json()).serie.merken, true);
@@ -52,12 +55,21 @@ async function main() {
       await page.locator('#zurStartseite').click();
       await page.locator('#sammlung .serien-zeile').waitFor();
       assert.equal(await page.locator('#sammlung .serien-zeile').count(), 1);
+      const poster = page.locator('#sammlung .poster-bild');
+      await poster.scrollIntoViewIfNeeded();
+      await page.waitForFunction(() => document.querySelector('#sammlung .poster-bild')?.naturalWidth > 0);
+      assert.equal(await poster.getAttribute('loading'), 'lazy');
+      assert.equal((await daten()).serien[0].bild, katalog.serie.bild);
       // Ein zweiter Browserkontext liest dieselbe Liste vom Server, ohne lokalen Listen-Speicher.
       const zweiter = await browser.newContext({ viewport: { width: breite, height: 900 } });
+      // Fehlendes Quellbild muss auch auf einem anderen Gerät die Titelkarte zeigen.
+      await zweiter.route(katalog.serie.bild, (r) => r.abort());
       await zweiter.addInitScript(() => { try { localStorage.setItem('serienKatalog.token', 'test'); } catch {} });
       const anderesGeraet = await zweiter.newPage();
       await anderesGeraet.goto(basis);
       await anderesGeraet.locator('#meine-liste .serien-zeile').waitFor();
+      await anderesGeraet.locator('#meine-liste .serien-zeile').scrollIntoViewIfNeeded();
+      await anderesGeraet.waitForFunction(() => !document.querySelector('#meine-liste .poster-bild'));
       assert.ok(await anderesGeraet.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
       if (breite === 390 && process.env.TEST_SCREENSHOTS) await anderesGeraet.screenshot({ path: '/tmp/flipperflix-start.png', fullPage: true });
       await zweiter.close();
@@ -92,6 +104,12 @@ async function main() {
     assert.deepEqual(leer.serie.gesehen, {});
     assert.equal((await post({ serie: 'Bleibt auf der Liste', merken: false })).serie, null);
     assert.equal((await post({ serie: 'Ungültig', merken: 'ja' })).ok, false);
+    const besucht = { staffel: 1, folge: null, folgen: [1] };
+    for (const bild of ['javascript:alert(1)', 'http://example.org/cover.jpg', 'https://user:pass@example.org/x', 123]) {
+      assert.equal((await post({ serie: 'Ungültiges Cover', besucht, bild })).ok, false);
+    }
+    await post({ serie: 'Cover bleibt', besucht, bild: katalog.serie.bild });
+    assert.equal((await post({ serie: 'Cover bleibt', besucht, bild: null })).serie.bild, katalog.serie.bild);
     console.log('Liste und Gesehen-Stand bleiben unabhängig erhalten.');
   } finally {
     if (browser) await browser.close();

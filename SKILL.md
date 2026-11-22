@@ -42,6 +42,11 @@ Das Skript gibt JSON auf stdout aus.
 
 Bei Erfolg stehen die Folgen in `staffel.folgen` (Nummer, Titel, Anbieter), die
 Seriendaten in `serie`, und `folge` sagt bei angegebener Folge, ob es sie gibt.
+`serie.bild` enthält die absolute HTTPS-Adresse des vorhandenen Seriencovers
+oder `null`. Das Cover wird im selben Seitenabruf mitgelesen; dafür sind weder
+eine zusätzliche Suche noch ein API-Schlüssel nötig. Die Weboberfläche speichert
+die Adresse beim Serienbesuch und lädt Bilder erst bei Bedarf. Ohne erreichbares
+Bild bleibt die Titelkarte sichtbar.
 
 ## Antwort an den Nutzer
 

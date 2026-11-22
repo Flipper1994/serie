@@ -15,7 +15,27 @@ const SUCHZEIT_MS = Number(process.env.VIDEO_SUCHZEIT_MS || 25000);
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function suchen(link) {
-  if (require('./playmogo').istPlaymogo(link)) return require('./playmogo').suchen(link);
+  if (require('./playmogo').istPlaymogo(link)) {
+    if (process.env.VIDEO_SOLVER_URL) {
+      const adresse = new URL(link);
+      adresse.pathname = adresse.pathname.replace(/^\/d\//, '/e/');
+      const solver = await require('./solver-browser').suchen(adresse.href);
+      if (solver.ok) return solver;
+      // Der vorhandene Browserpfad bleibt auch bei ausgefallenem Dienst nutzbar.
+      const alt = await require('./playmogo').suchen(link).catch((e) => ({ ok: false, fehler: e.message }));
+      return alt.ok ? alt : { ok: false, fehler: `${solver.fehler}; ${alt.fehler}`.slice(0, 400) };
+    }
+    return require('./playmogo').suchen(link);
+  }
+  let ergebnis;
+  try { ergebnis = await browserSuchen(link); }
+  catch (e) { ergebnis = { ok: false, fehler: String(e.message).split('\n')[0].slice(0, 200) }; }
+  if (ergebnis.ok || !process.env.VIDEO_SOLVER_URL) return ergebnis;
+  const solver = await require('./solver-browser').suchen(link);
+  return solver.ok ? solver : { ok: false, fehler: `${ergebnis.fehler}; ${solver.fehler}`.slice(0, 400) };
+}
+
+async function browserSuchen(link) {
   // Filemoon liefert im Katalog die Download-Seite; der Player liegt unter /e/.
   const adresse = new URL(link);
   if (/^(www\.)?filemoon\.to$/i.test(adresse.hostname) && /^\/d\/[a-z0-9]+\/?$/i.test(adresse.pathname)) {
