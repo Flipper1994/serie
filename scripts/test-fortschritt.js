@@ -14,6 +14,7 @@ const pause = (ms) => new Promise((r) => setTimeout(r, ms));
   const scripts = path.join(temp, 'scripts'); fs.mkdirSync(scripts);
   const bin = path.join(temp, 'bin'); fs.mkdirSync(bin);
   fs.copyFileSync(path.join(__dirname, 'server.js'), path.join(scripts, 'server.js'));
+  for (const datei of ['playmogo.js', 'medien-sitzung.js']) fs.copyFileSync(path.join(__dirname, datei), path.join(scripts, datei));
   fs.writeFileSync(path.join(scripts, 'video-link.js'), `setTimeout(() => console.log(JSON.stringify({ok:true,url:'https://example.com/video.mp4',art:'datei',titel:'Cachevideo'})), 300);`);
   const worker = path.join(bin, 'xvfb-run');
   fs.writeFileSync(worker, `#!/usr/bin/env node

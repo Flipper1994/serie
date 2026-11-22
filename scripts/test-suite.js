@@ -4,6 +4,8 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const python = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
 const tests = [
+  [process.execPath, 'test-playmogo.js'],
+  [process.execPath, 'test-video-proxy.js'],
   [process.execPath, 'test-suche.js'],
   [python, 'test-captcha-api.py'],
   ...(process.platform === 'linux' ? [[process.execPath, 'test-fortschritt.js']] : []),

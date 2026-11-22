@@ -45,6 +45,8 @@ const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
 const { execFile } = require('child_process');
+const { istPlaymogo } = require('./playmogo');
+const medienSitzung = require('./medien-sitzung');
 
 const TOKEN = process.env.API_TOKEN || '';
 const PORT = Number(process.env.PORT || 8080);
@@ -267,6 +269,7 @@ function browserLauf(videoUrl) {
         fertig({
           ok: true, mp4: d.url, titel: String(d.titel || '').slice(0, 200),
           art: d.art === 'hls' ? 'hls' : 'datei', referer: String(d.referer || '').slice(0, 2048),
+          sitzung: istPlaymogo(videoUrl) ? medienSitzung.anlegen(d, MEDIEN_GUELTIG_MS) : '',
         });
       },
     );
@@ -398,15 +401,16 @@ function streamHolen(videoUrl) {
   const treffer = streamCache.get(schluessel);
   const antwort = (e, cached) => ({
     status: 200,
-    inhalt: { ok: true, mp4: e.mp4, cached, titel: e.titel, art: e.art, medien: medienPfad(e.mp4, e.referer) },
+    inhalt: { ok: true, mp4: e.mp4, cached, titel: e.titel, art: e.art, medien: medienPfad(e.mp4, e.referer, undefined, e.sitzung) },
   });
   if (treffer && treffer.bis > Date.now()) return Promise.resolve(antwort(treffer.inhalt, true));
   return streamEingereiht(async () => {
-    let ergebnis = await ytDlpLauf(videoUrl);
+    let ergebnis = istPlaymogo(videoUrl) ? { ok: false, fehler: 'Playmogo-Browserauflösung' } : await ytDlpLauf(videoUrl);
     if (!ergebnis.ok) {
       // Es läuft nur ein Browser gleichzeitig (gemeinsame Schlange mit dem Katalog).
       const ausBrowser = await eingereiht(() => browserLauf(videoUrl));
       if (ausBrowser.ok) ergebnis = ausBrowser;
+      else if (istPlaymogo(videoUrl)) ergebnis = ausBrowser;
       else ergebnis.fehler = `${ergebnis.fehler} · Browser: ${ausBrowser.fehler}`;
     }
     if (ergebnis.ok) {
@@ -423,12 +427,13 @@ function streamHolen(videoUrl) {
 // Chromecast lädt das Video außerdem selbst und kann kein Token mitschicken.
 // Deshalb leitet der Dienst das Video unter einer signierten Adresse durch.
 const MEDIEN_SCHLUESSEL = crypto.createHmac('sha256', TOKEN).update('medien-signatur').digest();
-const medienSignatur = (ab, referer, ziel) =>
-  crypto.createHmac('sha256', MEDIEN_SCHLUESSEL).update(`${ab}\n${referer}\n${ziel}`).digest('base64url');
+const medienSignatur = (ab, referer, ziel, sitzung = '') =>
+  crypto.createHmac('sha256', MEDIEN_SCHLUESSEL).update(`${ab}\n${referer}\n${ziel}${sitzung ? `\n${sitzung}` : ''}`).digest('base64url');
 
 // Relative Adresse; so stimmt sie auch hinter einem Reverse-Proxy mit Pfad.
-function medienPfad(ziel, referer, ab = Date.now() + MEDIEN_GUELTIG_MS) {
-  const p = new URLSearchParams({ ab: String(ab), s: medienSignatur(ab, referer || '', ziel) });
+function medienPfad(ziel, referer, ab = Date.now() + MEDIEN_GUELTIG_MS, sitzung = '') {
+  const p = new URLSearchParams({ ab: String(ab), s: medienSignatur(ab, referer || '', ziel, sitzung) });
+  if (sitzung) p.set('sid', sitzung);
   if (referer) p.set('r', referer);
   p.set('u', ziel);
   return `medien?${p}`;
@@ -436,12 +441,12 @@ function medienPfad(ziel, referer, ab = Date.now() + MEDIEN_GUELTIG_MS) {
 
 // Holt die Quelle und folgt Weiterleitungen selbst, damit keine davon auf
 // eine interne Adresse führt. Liefert { antwort, adresse }.
-function quelleHolen(adresse, methode, kopf, signal, rest = 5) {
+function quelleHolen(adresse, methode, kopf, signal, rest = 5, sitzung = null) {
   return new Promise((fertig, abgelehnt) => {
     if (adresse.protocol !== 'http:' && adresse.protocol !== 'https:') return abgelehnt(new Error('Nur http(s) ist erlaubt'));
     if (istLokal(adresse.hostname)) return abgelehnt(new Error('Lokale Adressen sind nicht erlaubt'));
     const anfrage = (adresse.protocol === 'https:' ? https : http).request(
-      adresse, { method: methode, headers: kopf, signal, timeout: 20000 },
+      adresse, { method: methode, headers: medienSitzung.kopfFuer(adresse, kopf, sitzung), signal, timeout: 20000 },
       (antwort) => {
         const weiter = [301, 302, 303, 307, 308].includes(antwort.statusCode) && antwort.headers.location;
         if (!weiter) return fertig({ antwort, adresse });
@@ -449,7 +454,7 @@ function quelleHolen(adresse, methode, kopf, signal, rest = 5) {
         if (rest <= 0) return abgelehnt(new Error('Zu viele Weiterleitungen'));
         let naechste;
         try { naechste = new URL(weiter, adresse); } catch { return abgelehnt(new Error('Ungültige Weiterleitung')); }
-        quelleHolen(naechste, methode, kopf, signal, rest - 1).then(fertig, abgelehnt);
+        quelleHolen(naechste, methode, kopf, signal, rest - 1, sitzung).then(fertig, abgelehnt);
       },
     );
     anfrage.on('timeout', () => anfrage.destroy(new Error('Die Quelle antwortet nicht')));
@@ -459,9 +464,9 @@ function quelleHolen(adresse, methode, kopf, signal, rest = 5) {
 }
 
 // Schreibt in einer HLS-Wiedergabeliste jede Adresse auf die Durchleitung um.
-function listeUmschreiben(text, basis, referer, ab) {
+function listeUmschreiben(text, basis, referer, ab, sitzung = '') {
   const um = (roh) => {
-    try { return medienPfad(new URL(roh.trim(), basis).href, referer, ab); } catch { return roh; }
+    try { return medienPfad(new URL(roh.trim(), basis).href, referer, ab, sitzung); } catch { return roh; }
   };
   return text.split(/\r?\n/).map((zeile) => {
     if (!zeile.trim()) return zeile;
@@ -478,10 +483,13 @@ async function medienAusliefern(req, res, url) {
   const ziel = url.searchParams.get('u') || '';
   const referer = url.searchParams.get('r') || '';
   const ab = url.searchParams.get('ab') || '';
+  const sid = url.searchParams.get('sid') || '';
   const erhalten = Buffer.from(url.searchParams.get('s') || '');
-  const erwartet = Buffer.from(medienSignatur(ab, referer, ziel));
+  const erwartet = Buffer.from(medienSignatur(ab, referer, ziel, sid));
   if (erhalten.length !== erwartet.length || !crypto.timingSafeEqual(erhalten, erwartet)) return text(403, 'Signatur ungültig');
   if (!(Number(ab) > Date.now())) return text(410, 'Der Link ist abgelaufen – das Video bitte neu öffnen');
+  const sitzung = sid ? medienSitzung.lesen(sid) : null;
+  if (sid && !sitzung) return text(410, 'Die Videositzung ist abgelaufen – das Video bitte neu öffnen');
 
   const kopf = { 'User-Agent': MEDIEN_AGENT, Accept: '*/*', 'Accept-Encoding': 'identity' };
   if (referer) {
@@ -494,7 +502,7 @@ async function medienAusliefern(req, res, url) {
 
   let antwort, adresse;
   try {
-    ({ antwort, adresse } = await quelleHolen(new URL(ziel), req.method, kopf, abbruch.signal));
+    ({ antwort, adresse } = await quelleHolen(new URL(ziel), req.method, kopf, abbruch.signal, 5, sitzung));
   } catch (fehler) {
     if (abbruch.signal.aborted) return;
     return text(502, `Quelle nicht erreichbar: ${String(fehler.message).split('\n')[0]}`);
@@ -518,7 +526,7 @@ async function medienAusliefern(req, res, url) {
     antwort.destroy();
     delete kopf.Range;
     try {
-      ({ antwort, adresse } = await quelleHolen(adresse, 'GET', kopf, abbruch.signal));
+      ({ antwort, adresse } = await quelleHolen(adresse, 'GET', kopf, abbruch.signal, 5, sitzung));
     } catch (fehler) {
       if (abbruch.signal.aborted) return;
       return text(502, `Quelle nicht erreichbar: ${String(fehler.message).split('\n')[0]}`);
@@ -539,7 +547,7 @@ async function medienAusliefern(req, res, url) {
       if (abbruch.signal.aborted) return;
       return text(502, `Quelle nicht lesbar: ${String(fehler.message).split('\n')[0]}`);
     }
-    const inhalt = Buffer.from(listeUmschreiben(Buffer.concat(teile).toString('utf8'), adresse, referer, ab));
+    const inhalt = Buffer.from(listeUmschreiben(Buffer.concat(teile).toString('utf8'), adresse, referer, ab, sid));
     res.writeHead(200, {
       'Content-Type': 'application/vnd.apple.mpegurl',
       'Content-Length': inhalt.length,

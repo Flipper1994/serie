@@ -226,6 +226,57 @@ Kennt `yt-dlp` den Anbieter nicht (z. B. VOE), öffnet `scripts/video-link.js`
 die Seite im Headless-Browser, startet den Player und liest mit, welche
 Videoadresse er lädt. Das dauert einige Sekunden länger.
 
+Playmogo hat einen eigenen Browser-Resolver: `/d/<ID>` wird unter `/e/<ID>`
+geöffnet, Play-Schaltflächen werden auch in Iframes bedient. Die Antwort enthält
+weiterhin `mp4`, `art` und `medien`. Sitzungscookies bleiben ausschließlich im
+Serverprozess; der Medien-Proxy verwendet die passende Browserkennung und sendet
+Cookies nur an passende Domains/Pfade, auch nach Weiterleitungen. Die signierte
+Sitzungs-ID wird in HLS-Listen an Segmente und Schlüssel weitergegeben. Andere
+Hoster behalten ihren bisherigen yt-dlp-/Browserablauf und ihre Medienadressen.
+
+**Live-E2E auf dem vServer**, nach dem Update und Neustart des Dienstes:
+
+    cd /opt/serie
+    sudo bash deploy/test-playmogo.sh https://playmogo.com/d/onlyy2irbz99
+
+Das Skript liest das bestehende Token aus `/etc/serien-katalog.env` und startet
+Chromium als Dienstbenutzer. Es öffnet die echte `/video`-Seite und prüft die
+Auflösung, einen MP4-Teilabruf ohne Token (HTTP 206, MP4-Dateikopf), echte Frames,
+laufende Wiedergabe und Vorspulen. Fehler ergeben Exitcode 1. Keine nachgebildeten
+Antworten, keine kostenpflichtigen Captcha-Aufträge. `TEST_BASIS` kann alternativ
+die öffentliche Adresse einschließlich `/serie/` enthalten. Beispiel:
+
+    sudo env TEST_BASIS=https://flippercapital.duckdns.org/serie/ bash deploy/test-playmogo.sh
+
+Für einen Anbieter mit HLS statt MP4: `TEST_ERWARTE_MP4=0` setzen. Direkter Aufruf:
+`API_TOKEN=… TEST_BASIS=http://127.0.0.1:8080/ node scripts/test-link-e2e.js <URL>`.
+Optional schreibt `TEST_SCREENSHOT=/tmp/playmogo-e2e.png` bei Fehlern einen Screenshot.
+Token, Cookies und signierte Medienadressen werden nicht ausgegeben.
+
+**Cloudflare:** Ein HTTP-403-/„Just a moment“-Ergebnis ist keine erfolgreiche
+Videoauflösung. Bleibt die Prüfung bestehen, meldet der Resolver dies ausdrücklich.
+Es gibt keine Garantie für eine automatische Freigabe auf einer vServer-IP.
+Optional lässt sich eine regulär im Browser bestätigte Sitzung verwenden:
+
+    # Auf demselben vServer, als Benutzer serie, mit grafischer Sitzung / X11:
+    node scripts/playmogo.js https://playmogo.com/d/onlyy2irbz99 /pfad/playmogo-sitzung.json
+
+Die Prüfung abschließen, Video starten und im Terminal Enter drücken. Dann
+`PLAYMOGO_SITZUNG_DATEI=/pfad/playmogo-sitzung.json` in die Dienstkonfiguration
+eintragen und `sudo systemctl restart serien-katalog` ausführen. Die Datei muss
+für `serie` lesbar bleiben (Modus 600). Cloudflare kann Sitzungen an IP und
+Browser binden oder ablaufen lassen; eine auf einem anderen Rechner erzeugte
+Datei ist deshalb kein verlässlicher Ersatz. Nach einem Dienstneustart sind
+bereits offene Videos mit Sitzung neu zu öffnen.
+
+Kontrollierte Regressionstests (ohne Freigabe beim echten Hoster):
+
+    node scripts/test-playmogo.js
+    node scripts/test-video-proxy.js
+
+Sie prüfen MP4/HLS, Iframe-Play, Cloudflare-Diagnose, Cookie-Grenzen,
+Weiterleitungen, Range, Cache, Signaturen und den bisherigen Hosterpfad.
+
 Einrichten (Debian/Ubuntu, als root, Node ab Version 18 vorausgesetzt):
 
     useradd --system --create-home serie

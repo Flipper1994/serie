@@ -18,6 +18,7 @@ async function main() {
   const daten = path.join(temp, 'daten'); fs.mkdirSync(daten);
   fs.writeFileSync(path.join(daten, 'gesehen.json'), JSON.stringify({ serien: { altbestand: { titel: 'Altbestand', staffeln: ['1', '3'], geaendert: '2020-01-01', gesehen: { 1: { anzahlFolgen: 5, folgen: [2] } } } } }));
   fs.copyFileSync(path.join(__dirname, 'server.js'), path.join(scripts, 'server.js'));
+  for (const datei of ['playmogo.js', 'medien-sitzung.js']) fs.copyFileSync(path.join(__dirname, datei), path.join(scripts, datei));
   fs.cpSync(path.join(__dirname, '..', 'public'), path.join(temp, 'public'), { recursive: true });
   fs.writeFileSync(path.join(scripts, 'katalog.js'), `
 const s=Number(process.argv[3]); const name=process.argv[2];
