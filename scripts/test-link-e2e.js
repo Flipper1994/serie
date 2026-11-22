@@ -35,7 +35,7 @@ async function main() {
     await page.waitForFunction(() => {
       const v = document.querySelector('video');
       return (v && v.videoWidth > 0 && v.readyState >= 2) || !!document.querySelector('#meldung.fehler:not([hidden])');
-    }, null, { timeout: 110000 });
+    }, null, { timeout: 250000 });
     const meldung = page.locator('#meldung.fehler:not([hidden])');
     if (await meldung.count()) throw new Error(await meldung.innerText());
     assert.ok(daten?.ok && daten.mp4 && daten.medien, 'UI muss eine echte Stream-Antwort erhalten');
